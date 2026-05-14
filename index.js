@@ -1,8 +1,12 @@
 globalThis.CommunityReactionsExtension = (() => {
 'use strict';
 
-const MODULE_NAME = 'community-reactions';
+const MODULE_NAME = 'st-community-reactions';
 const EXTENSION_BASE_URL = (() => {
+    if (typeof import.meta?.url === 'string') {
+        return new URL('.', import.meta.url).href;
+    }
+
     const src = document.currentScript?.src;
     return src
         ? new URL('.', src).href
