@@ -1,0 +1,12 @@
+{
+    "display_name": "Community Reactions",
+    "loading_order": 101,
+    "requires": [],
+    "optional": ["connection-manager"],
+    "js": "index.js?v=20260515-1",
+    "css": "style.css?v=20260515-1",
+    "author": "blank242",
+    "version": "0.1.0",
+    "homePage": "",
+    "auto_update": false
+}
