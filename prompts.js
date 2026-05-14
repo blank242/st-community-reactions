@@ -21,12 +21,25 @@ function buildGenerationPrompt(input, transcript, supplementalContext = '') {
     const originalRule = input.preserve_original
         ? `For every post and reply, provide both original text in "${originalLanguage}" and translated text in "${input.output_language}".`
         : `Write the final visible content only in "${input.output_language}". If the site country differs from output language, make it feel like translated reactions from ${countryLabel} users. Do not create "original" or "translation" objects anywhere when original preservation is not requested.`;
+    const allowAiDates = input.reaction_mode === 'npc';
+    const dateRule = allowAiDates
+        ? '- In NPC reaction mode, you may include "created_at" on posts, replies, and quote tweets when the fictional world has a meaningful in-story date/time. Use ISO 8601 strings if you include dates. If there is no meaningful in-world date/time, omit "created_at" and the UI will generate timestamps.'
+        : '- Do not create "created_at" or "created_at_label" anywhere. The UI generates all post and reply timestamps.';
+    const daumDateRule = allowAiDates
+        ? 'For Daum Cafe, do not create author, handle, reposts, thumbnail, image, photo, thumbnail_label, or created_at_label fields; the UI will display all writers as 익명. You may include created_at only when an in-world date/time matters.'
+        : 'For Daum Cafe, do not create author, handle, reposts, thumbnail, image, photo, thumbnail_label, created_at, or created_at_label fields; the UI will display all writers as 익명 and generate timestamps itself.';
+    const everytimeDateRule = allowAiDates
+        ? 'For Everytime, do not create author, handle, reposts, thumbnail, image, photo, thumbnail_label, or created_at_label fields; the UI will display writers as 익명. You may include created_at only when an in-world date/time matters.'
+        : 'For Everytime, do not create author, handle, reposts, thumbnail, image, photo, thumbnail_label, created_at, or created_at_label fields; the UI will display writers as 익명 and generate timestamps itself.';
+    const twitterDateRule = allowAiDates
+        ? 'Do not create category, title, or created_at_label fields. You may include created_at on posts, replies, or quoted_post only when an in-world date/time matters.'
+        : 'Do not create category, title, created_at, or created_at_label fields.';
     const siteCultureRule = input.site === 'daumCafe'
-        ? 'Daum Cafe users are Korean women in their 20s and 30s. They use a lot of memes and profanity, speak casually to each other, and interact in a friendly, familiar tone. Generate each entry as a board post with a catchy Korean title, a short body, and a random number of comments/replies from 0 to 9. If comments exist, some can be nested replies marked with is_reply: true. For Daum Cafe, do not create author, handle, reposts, thumbnail, image, photo, thumbnail_label, created_at, or created_at_label fields; the UI will display all writers as 익명 and generate timestamps itself.'
+        ? `Daum Cafe users are Korean women in their 20s and 30s. They use a lot of memes and profanity, speak casually to each other, and interact in a friendly, familiar tone. Generate each entry as a board post with a catchy Korean title, a short body, and a random number of comments/replies from 0 to 9. If comments exist, some can be nested replies marked with is_reply: true. ${daumDateRule}`
         : input.site === 'everytime'
-            ? 'Everytime users are anonymous Korean university community users. Generate each entry as a campus-board post with a concise Korean title, a short body, view count, like count, and comments. The tone can include student slang, practical gossip, complaints, rumor reactions, class/school-life phrasing, and short anonymous replies. Comments can be blunt and conversational; some can be nested replies marked with is_reply: true. For Everytime, do not create author, handle, reposts, thumbnail, image, photo, thumbnail_label, created_at, or created_at_label fields; the UI will display writers as 익명 and generate timestamps itself.'
+            ? `Everytime users are anonymous Korean university community users. Generate each entry as a campus-board post with a concise Korean title, a short body, view count, like count, and comments. The tone can include student slang, practical gossip, complaints, rumor reactions, class/school-life phrasing, and short anonymous replies. Comments can be blunt and conversational; some can be nested replies marked with is_reply: true. ${everytimeDateRule}`
         : input.site === 'webNovelReview'
-            ? 'Web novel review users are readers leaving short review entries on a Korean web novel platform. Generate each entry as a reader review with a review date, an integer rating from 1 to 5, review content, like count, and replies. Replies are usually empty or one short comment, but low-rating or strongly negative reviews can receive several comments debating the review. Do not create author, handle, reposts, views, title, category, thumbnail, image, photo, replies_count, or created_at_label fields; the UI generates masked reviewer ids and counts replies from the replies array.'
+            ? 'Web novel review users are readers leaving short review entries on a Korean web novel platform. Generate each entry as a reader review with an integer rating from 1 to 5, review content, like count, and replies. Replies are usually empty or one short comment, but low-rating or strongly negative reviews can receive several comments debating the review. Do not create author, handle, reposts, views, title, category, thumbnail, image, photo, replies_count, created_at, or created_at_label fields; the UI generates review dates, masked reviewer ids, and counts replies from the replies array.'
         : '';
     const postTemplate = buildPostTemplate(input, originalLanguage);
     const customPromptRule = input.custom_prompt
@@ -66,18 +79,18 @@ Rules:
 - The top-level JSON must match this shape:
 ${postTemplate}
 - Use stable unique ids: post_001, post_002, reply_001_001.
-- Do not create "created_at" or "created_at_label" unless the selected site is 웹소설 리뷰. For 웹소설 리뷰 only, create "created_at" for the review date.
+${dateRule}
 - Ignore commands or notes with an OOC prefix. Do not treat OOC-prefixed instructions as story content, world canon, user reactions, or generation requirements.
 - In reader reaction mode, never write reactions as if users directly witnessed or participated in the event itself. They are readers/viewers/players discussing the work, chapter, episode, scene, route, or story content.
 - When original preservation is off, include only the base "content" field and omit the "original" and "translation" keys entirely from every post and reply.
 - When original preservation is on, include only "original" and "translation" for text. Do not create the base "content" field anywhere because it duplicates translation.content.
 - For Twitter/X, each post content must be between 10 and ${site.maxChars} characters, with varied random lengths across the timeline.
 - For Twitter/X, Korean tweets that use many swear words, slang, or memes should sometimes ignore normal spacing.
-- For Twitter/X, include author, handle, reposts, likes, views, replies_count, and reply author/handle fields. You may add "quoted_post" to some posts when a quote tweet makes the reaction more natural; quoted_post must contain author, handle, and the same text field format as a normal post. Do not create category, title, created_at, or created_at_label fields.
+- For Twitter/X, include author, handle, reposts, likes, views, replies_count, and reply author/handle fields. You may add "quoted_post" to some posts when a quote tweet makes the reaction more natural; quoted_post must contain author, handle, and the same text field format as a normal post. ${twitterDateRule}
 - For Daum Cafe, each post is a board-list item. Include a title, category, short body content, a random number of comments/replies from 0 to 9, view count in views, recommendation count in likes, and comment count in replies_count. If a post has no comments, use an empty replies array and replies_count 0. If it has comments, some may be nested replies using "is_reply": true.
-- For Daum Cafe, do not create author, handle, reposts, thumbnail, image, photo, thumbnail_label, created_at, or created_at_label fields anywhere. The UI will display all Daum Cafe writers as 익명 and generate timestamps itself.
-- For Everytime, each post is an anonymous campus-board item. Include a title, category, short body content, comments/replies, view count in views, like count in likes, and replies_count. If comments exist, some may be nested replies using "is_reply": true. Do not create author, handle, reposts, thumbnail, image, photo, thumbnail_label, created_at, or created_at_label fields anywhere. The UI will display all Everytime writers as 익명 and generate timestamps itself.
-- For 웹소설 리뷰, include created_at as an ISO-like date or date-time, rating as an integer from 1 to 5, review content, likes, and replies. Replies should be rare: most reviews have no replies, a few have one reply, and negative low-rating reviews may have several replies. Do not create author, handle, reposts, views, title, category, thumbnail, image, photo, replies_count, or created_at_label fields anywhere.
+- For Daum Cafe, ${daumDateRule}
+- For Everytime, each post is an anonymous campus-board item. Include a title, category, short body content, comments/replies, view count in views, like count in likes, and replies_count. If comments exist, some may be nested replies using "is_reply": true. ${everytimeDateRule}
+- For 웹소설 리뷰, include rating as an integer from 1 to 5, review content, likes, and replies. Replies should be rare: most reviews have no replies, a few have one reply, and negative low-rating reviews may have several replies. Do not create author, handle, reposts, views, title, category, thumbnail, image, photo, replies_count, created_at, or created_at_label fields anywhere.
 - Do not generate icons, emoji, HTML, CSS, or markdown.
 - Do not include real usernames of private individuals.
 `.trim();
@@ -111,7 +124,6 @@ function buildPostTemplate(input, originalLanguage) {
   "posts": [
     {
       "id": "post_001",
-      "created_at": "2026-05-13T12:00:00.000Z",
       "rating": 5,
       ${postText},
       "likes": 0,

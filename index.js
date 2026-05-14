@@ -13,7 +13,7 @@ const EXTENSION_BASE_URL = (() => {
         : new URL(`/scripts/extensions/third-party/${MODULE_NAME}/`, window.location.href).href;
 })();
 const TEMPLATE_SCRIPT_VERSION = '20260515-template-1';
-const PROMPT_SCRIPT_VERSION = '20260515-reader-frame-1';
+const PROMPT_SCRIPT_VERSION = '20260515-npc-ai-dates-1';
 const STORAGE_SCRIPT_VERSION = '20260515-storage-1';
 const FILE_PREFIX = 'crx';
 const JSON_INDENT = 2;
@@ -1298,9 +1298,10 @@ function normalizePosts(posts, input) {
         return [];
     }
 
-    const generatedPostDates = createRandomRecentDateSeries(posts.length, 3);
+    const shouldGeneratePostDates = input.reaction_mode !== 'npc';
+    const generatedPostDates = shouldGeneratePostDates ? createRandomRecentDateSeries(posts.length, 3) : [];
     return posts
-        .map((post, index) => normalizePost(post, index, input, generatedPostDates[index]))
+        .map((post, index) => normalizePost(post, index, input, generatedPostDates[index] || null))
         .filter(Boolean)
         .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
 }
@@ -1314,9 +1315,10 @@ function normalizePost(post, index, input, generatedCreatedAt = null) {
     const createdAt = generatedCreatedAt || coerceCreatedAtIso(post.created_at);
     const postCreatedMs = Date.parse(createdAt);
     const rawReplies = Array.isArray(post.replies) ? post.replies : [];
-    const replyDates = createAscendingDateSeriesAfter(rawReplies.length, postCreatedMs);
+    const shouldGenerateReplyDates = input.reaction_mode !== 'npc';
+    const replyDates = shouldGenerateReplyDates ? createAscendingDateSeriesAfter(rawReplies.length, postCreatedMs) : [];
     const normalizedReplies = rawReplies.length
-        ? rawReplies.map((reply, replyIndex) => normalizeReply(reply, id, replyIndex, input, postCreatedMs, replyDates[replyIndex])).filter(Boolean)
+        ? rawReplies.map((reply, replyIndex) => normalizeReply(reply, id, replyIndex, input, postCreatedMs, replyDates[replyIndex] || null)).filter(Boolean)
         : [];
     const replies = isBoardSite(input.site) ? normalizedReplies.slice(0, input.site === 'everytime' ? 12 : 9) : normalizedReplies;
     const explicitReplyCount = Number(post.replies_count);
@@ -1335,7 +1337,7 @@ function normalizePost(post, index, input, generatedCreatedAt = null) {
     } : input.site === 'webNovelReview' ? {
         id,
         reviewer_id: createMaskedReviewerId(`${id}|${post.content || post.translation?.content || post.original?.content || index}`),
-        created_at: coerceCreatedAtIso(post.created_at),
+        created_at: createdAt,
         rating: Math.max(1, Math.min(5, Math.round(Number(post.rating || post.stars || 5)))),
         likes: Number(post.likes || 0),
         replies,
