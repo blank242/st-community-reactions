@@ -1705,6 +1705,16 @@
         border-radius: 22px;
     }
 
+    .crx-viewer-modal {
+        padding: 0;
+    }
+
+    .crx-viewer-modal .crx-popup {
+        height: 100vh;
+        max-height: none;
+        border-radius: 0;
+    }
+
     .crx-grid-2,
     .crx-viewer-tools {
         grid-template-columns: minmax(0, 1fr) auto;
