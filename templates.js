@@ -461,13 +461,31 @@ function pad2(value) {
     return String(value).padStart(2, '0');
 }
 
-function formatTwitterDate(value) {
+function getResultDateValues(result) {
+    const posts = Array.isArray(result?.posts) ? result.posts : [];
+    return posts.map(post => post?.created_at);
+}
+
+function getResultReferenceDate(result) {
+    if (result?.generation?.reaction_mode !== 'npc') {
+        return new Date();
+    }
+
+    const newestTime = getResultDateValues(result)
+        .map(value => getDateOrNull(value)?.getTime())
+        .filter(Number.isFinite)
+        .reduce((newest, time) => Math.max(newest, time), -Infinity);
+
+    return Number.isFinite(newestTime) ? new Date(newestTime) : new Date();
+}
+
+function formatTwitterDate(value, referenceDate = new Date()) {
     const date = getDateOrNull(value);
     if (!date) {
         return '방금 전';
     }
 
-    const now = new Date();
+    const now = referenceDate instanceof Date && !Number.isNaN(referenceDate.getTime()) ? referenceDate : new Date();
     const diffMs = Math.max(0, now.getTime() - date.getTime());
     const minutes = Math.floor(diffMs / 60000);
     if (minutes < 60) {
@@ -479,6 +497,11 @@ function formatTwitterDate(value) {
         return `${hours}시간 전`;
     }
 
+    const days = Math.floor(diffMs / 86400000);
+    if (days < 7) {
+        return `${Math.max(1, days)}일 전`;
+    }
+
     if (date.getFullYear() === now.getFullYear()) {
         return `${date.getMonth() + 1}월 ${date.getDate()}일`;
     }
@@ -486,13 +509,13 @@ function formatTwitterDate(value) {
     return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`;
 }
 
-function formatDaumDate(value) {
+function formatDaumDate(value, referenceDate = new Date()) {
     const date = getDateOrNull(value);
     if (!date) {
         return '방금';
     }
 
-    const now = new Date();
+    const now = referenceDate instanceof Date && !Number.isNaN(referenceDate.getTime()) ? referenceDate : new Date();
     if (isSameLocalDay(date, now)) {
         return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
     }
@@ -500,13 +523,13 @@ function formatDaumDate(value) {
     return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`;
 }
 
-function formatDaumDetailDate(value) {
+function formatDaumDetailDate(value, referenceDate = new Date()) {
     const date = getDateOrNull(value);
     if (!date) {
         return '방금';
     }
 
-    const now = new Date();
+    const now = referenceDate instanceof Date && !Number.isNaN(referenceDate.getTime()) ? referenceDate : new Date();
     if (isSameLocalDay(date, now)) {
         return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
     }
@@ -599,8 +622,9 @@ function renderWebNovelReviewReply(reply, result) {
 
 function renderTwitterPost(post, result, postKey = getPostKey(result.id, post.id)) {
     const { translated, original } = getPostTextPair(post, result);
-    const replies = post.replies.map((reply, index) => renderTwitterReply(reply, result, index < post.replies.length - 1)).join('');
-    const createdAtLabel = formatTwitterDate(post.created_at);
+    const referenceDate = getResultReferenceDate(result);
+    const replies = post.replies.map((reply, index) => renderTwitterReply(reply, result, index < post.replies.length - 1, referenceDate)).join('');
+    const createdAtLabel = formatTwitterDate(post.created_at, referenceDate);
     const commentCount = getPostReplyCount(post);
 
     return `
@@ -621,7 +645,7 @@ function renderTwitterPost(post, result, postKey = getPostKey(result.id, post.id
                     ${renderTranslationBar(post, result)}
                     <div class="crx-content crx-translated">${escapeHtml(translated)}</div>
                     ${renderOriginalContent(original)}
-                    ${renderQuotedTweet(post.quoted_post, result)}
+                    ${renderQuotedTweet(post.quoted_post, result, referenceDate)}
                     <div class="crx-twitter-actions">
                         <span title="댓글"><i class="fa-regular fa-comment"></i>${formatMetric(commentCount)}</span>
                         <span title="재게시"><i class="fa-solid fa-retweet"></i>${formatMetric(post.reposts)}</span>
@@ -637,7 +661,7 @@ function renderTwitterPost(post, result, postKey = getPostKey(result.id, post.id
     `;
 }
 
-function renderQuotedTweet(quotedPost, result) {
+function renderQuotedTweet(quotedPost, result, referenceDate = getResultReferenceDate(result)) {
     if (!quotedPost) {
         return '';
     }
@@ -654,7 +678,7 @@ function renderQuotedTweet(quotedPost, result) {
                 <div class="crx-twitter-quote-meta">
                     <span class="crx-twitter-quote-author">${escapeHtml(quotedPost.author || '익명')}</span>
                     ${quotedPost.handle ? `<span class="crx-twitter-quote-handle">${escapeHtml(quotedPost.handle)}</span>` : ''}
-                    ${quotedPost.created_at ? `<span class="crx-twitter-quote-dot">·</span><span class="crx-twitter-quote-time">${escapeHtml(formatTwitterDate(quotedPost.created_at))}</span>` : ''}
+                    ${quotedPost.created_at ? `<span class="crx-twitter-quote-dot">·</span><span class="crx-twitter-quote-time">${escapeHtml(formatTwitterDate(quotedPost.created_at, referenceDate))}</span>` : ''}
                 </div>
             </div>
             <div class="crx-twitter-quote-content crx-translated">${escapeHtml(translated)}</div>
@@ -663,9 +687,9 @@ function renderQuotedTweet(quotedPost, result) {
     `;
 }
 
-function renderTwitterReply(reply, result, hasFollowingReply = false) {
+function renderTwitterReply(reply, result, hasFollowingReply = false, referenceDate = getResultReferenceDate(result)) {
     const { translated, original } = getReplyTextPair(reply, result);
-    const createdAtLabel = formatTwitterDate(reply.created_at);
+    const createdAtLabel = formatTwitterDate(reply.created_at, referenceDate);
     return `
         <div class="crx-twitter-row crx-twitter-reply">
             <div class="crx-twitter-reply-avatar-slot ${hasFollowingReply ? 'has-following-reply' : ''}">
@@ -694,10 +718,10 @@ function renderTwitterReply(reply, result, hasFollowingReply = false) {
     `;
 }
 
-function renderDaumListItem(post, postKey, isLatestResult = false) {
+function renderDaumListItem(post, postKey, isLatestResult = false, result = null) {
     const commentCount = getPostReplyCount(post);
     const author = getDaumAuthor(post.author);
-    const createdAtLabel = formatDaumDate(post.created_at);
+    const createdAtLabel = formatDaumDate(post.created_at, getResultReferenceDate(result));
 
     return `
         <article class="crx-post crx-daum-list-item" data-post-key="${escapeHtml(postKey)}" role="button" tabindex="0">
@@ -721,10 +745,11 @@ function renderDaumListItem(post, postKey, isLatestResult = false) {
 
 function renderDaumPost(post, result, postKey = getPostKey(result.id, post.id)) {
     const { translated, original } = getPostTextPair(post, result);
-    const replies = post.replies.map(reply => renderDaumReply(reply, result)).join('');
+    const referenceDate = getResultReferenceDate(result);
+    const replies = post.replies.map(reply => renderDaumReply(reply, result, referenceDate)).join('');
     const commentCount = getPostReplyCount(post);
     const author = getDaumAuthor(post.author);
-    const createdAtLabel = formatDaumDetailDate(post.created_at);
+    const createdAtLabel = formatDaumDetailDate(post.created_at, referenceDate);
 
     return `
         <article class="crx-post crx-daum-post" data-post-key="${escapeHtml(postKey)}">
@@ -772,10 +797,10 @@ function renderDaumPost(post, result, postKey = getPostKey(result.id, post.id)) 
     `;
 }
 
-function renderDaumReply(reply, result) {
+function renderDaumReply(reply, result, referenceDate = getResultReferenceDate(result)) {
     const { translated, original } = getReplyTextPair(reply, result);
     const author = getDaumAuthor(reply.author);
-    const createdAtLabel = formatDaumDetailDate(reply.created_at);
+    const createdAtLabel = formatDaumDetailDate(reply.created_at, referenceDate);
     return `
         <div class="crx-daum-reply ${reply.is_reply ? 'is-reply' : ''}">
             ${reply.is_reply ? '<span class="crx-daum-reply-mark">ㄴ</span>' : ''}
@@ -803,7 +828,7 @@ function getEverytimeAnonymousName(value, fallback = 1) {
 function renderEverytimeListItem(post, result, postKey) {
     const commentCount = getPostReplyCount(post);
     const translated = getPostText(post, result, false) || post.content || '';
-    const createdAtLabel = formatTwitterDate(post.created_at);
+    const createdAtLabel = formatTwitterDate(post.created_at, getResultReferenceDate(result));
 
     return `
         <article class="crx-post crx-daum-list-item crx-everytime-list-item" data-post-key="${escapeHtml(postKey)}" role="button" tabindex="0">
@@ -825,7 +850,8 @@ function renderEverytimeListItem(post, result, postKey) {
 
 function renderEverytimePost(post, result, postKey = getPostKey(result.id, post.id)) {
     const { translated, original } = getPostTextPair(post, result);
-    const replies = post.replies.map((reply, index) => renderEverytimeReply(reply, result, index + 1)).join('');
+    const referenceDate = getResultReferenceDate(result);
+    const replies = post.replies.map((reply, index) => renderEverytimeReply(reply, result, index + 1, referenceDate)).join('');
     const commentCount = getPostReplyCount(post);
     const createdAtLabel = formatEverytimeDetailDate(post.created_at);
 
@@ -876,7 +902,7 @@ function renderEverytimePost(post, result, postKey = getPostKey(result.id, post.
     `;
 }
 
-function renderEverytimeReply(reply, result, index) {
+function renderEverytimeReply(reply, result, index, referenceDate = getResultReferenceDate(result)) {
     const { translated, original } = getReplyTextPair(reply, result);
     const author = reply.is_reply ? getEverytimeAnonymousName(reply.author, index) : getEverytimeAnonymousName(reply.author, index);
     const createdAtLabel = formatEverytimeDetailDate(reply.created_at);

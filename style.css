@@ -609,7 +609,7 @@
 .crx-twitter-actions span, .crx-twitter-reply-actions span {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 2px;
     min-width: 24px;
     flex: 1;
 }
@@ -1747,4 +1747,3 @@
         font-size: 0.91rem;
     }
 }
-

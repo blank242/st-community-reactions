@@ -12,7 +12,7 @@ const EXTENSION_BASE_URL = (() => {
         ? new URL('.', src).href
         : new URL(`/scripts/extensions/third-party/${MODULE_NAME}/`, window.location.href).href;
 })();
-const TEMPLATE_SCRIPT_VERSION = '20260515-template-1';
+const TEMPLATE_SCRIPT_VERSION = '20260515-npc-display-date-1';
 const PROMPT_SCRIPT_VERSION = '20260515-npc-ai-dates-1';
 const STORAGE_SCRIPT_VERSION = '20260515-storage-1';
 const FILE_PREFIX = 'crx';
@@ -629,7 +629,7 @@ async function initializeTemplates() {
         },
         daumCafe: {
             viewType: 'board',
-            renderListItem: entry => templates.renderDaumListItem(entry.post, entry.key, entry.result?.id === state.latestCommunityResultId),
+            renderListItem: entry => templates.renderDaumListItem(entry.post, entry.key, entry.result?.id === state.latestCommunityResultId, entry.result),
             renderDetail: entry => templates.renderDaumPost(entry.post, entry.result, entry.key),
         },
         everytime: {
