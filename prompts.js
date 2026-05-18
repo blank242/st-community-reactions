@@ -23,8 +23,11 @@ function buildGenerationPrompt(input, transcript, supplementalContext = '') {
         : `Write the final visible content only in "${input.output_language}". If the site country differs from output language, make it feel like translated reactions from ${countryLabel} users. Do not create "original" or "translation" objects anywhere when original preservation is not requested.`;
     const allowAiDates = input.reaction_mode === 'npc';
     const dateRule = allowAiDates
-        ? '- In NPC reaction mode, you may include "created_at" on posts, replies, and quote tweets when the fictional world has a meaningful in-story date/time. Use ISO 8601 strings if you include dates. If there is no meaningful in-world date/time, omit "created_at" and the UI will generate timestamps.'
+        ? '- In NPC reaction mode, you may include "created_at" on posts, replies, and quote tweets when the fictional world has a meaningful in-story date/time. Use ISO 8601 strings if you include dates. The created_at value MUST be earlier than the in-story date and time. If there is no meaningful in-world date/time, omit "created_at" and the UI will generate timestamps.'
         : '- Do not create "created_at" or "created_at_label" anywhere. The UI generates all post and reply timestamps.';
+    const npcDateDiscipline = allowAiDates
+        ? `\nNPC in-story timestamp discipline:\n- Before writing JSON, identify the latest in-story "now" implied by the selected chat excerpt and the NPC topic prompt.\n- Treat that in-story "now" as the absolute upper limit for every created_at value.\n- Every post, reply, and quoted_post created_at must be earlier than or equal to that in-story "now"; never place a reaction in the future relative to the characters' current time.\n- If the in-story "now" is only a date with no clock time, use times earlier on that same date or earlier dates. Do not invent a later time on that date.\n- If you cannot confidently determine an in-story date/time, omit created_at entirely instead of guessing.\n- Immediately before returning JSON, audit every created_at value against the in-story "now". If any value is later, replace it with an earlier time or remove the field.`
+        : '';
     const daumDateRule = allowAiDates
         ? 'For Daum Cafe, do not create author, handle, reposts, thumbnail, image, photo, thumbnail_label, or created_at_label fields; the UI will display all writers as 익명. You may include created_at only when an in-world date/time matters.'
         : 'For Daum Cafe, do not create author, handle, reposts, thumbnail, image, photo, thumbnail_label, created_at, or created_at_label fields; the UI will display all writers as 익명 and generate timestamps itself.';
@@ -35,12 +38,34 @@ function buildGenerationPrompt(input, transcript, supplementalContext = '') {
         ? 'Do not create category, title, or created_at_label fields. You may include created_at on posts, replies, or quoted_post only when an in-world date/time matters.'
         : 'Do not create category, title, created_at, or created_at_label fields.';
     const siteCultureRule = input.site === 'daumCafe'
-        ? `Daum Cafe users are Korean women in their 20s and 30s. They use a lot of memes and profanity, speak casually to each other, and interact in a friendly, familiar tone. Generate each entry as a board post with a catchy Korean title, a short body, and a random number of comments/replies from 0 to 9. If comments exist, some can be nested replies marked with is_reply: true. ${daumDateRule}`
+        ? `Daum Cafe users are women from ${countryLabel} in their 10s and 20s. They use a lot of memes and profanity, speak casually to each other, and interact in a friendly, familiar tone. Generate each entry as a board post with a catchy Korean title, a short body, and a random number of comments/replies from 0 to 9. If comments exist, some can be nested replies marked with is_reply: true. ${daumDateRule}`
         : input.site === 'everytime'
-            ? `Everytime users are anonymous Korean university community users. Generate each entry as a campus-board post with a concise Korean title, a short body, view count, like count, and comments. The tone can include student slang, practical gossip, complaints, rumor reactions, class/school-life phrasing, and short anonymous replies. Comments can be blunt and conversational; some can be nested replies marked with is_reply: true. ${everytimeDateRule}`
+            ? `Everytime users are anonymous ${countryLabel} university community users. Generate each entry as a campus-board post with a concise Korean title, a short body, view count, like count, and comments. The tone can include student slang, practical gossip, complaints, rumor reactions, class/school-life phrasing, and short anonymous replies. Comments can be blunt and conversational; some can be nested replies marked with is_reply: true. ${everytimeDateRule}`
         : input.site === 'webNovelReview'
-            ? 'Web novel review users are readers leaving short review entries on a Korean web novel platform. Generate each entry as a reader review with an integer rating from 1 to 5, review content, like count, and replies. Replies are usually empty or one short comment, but low-rating or strongly negative reviews can receive several comments debating the review. Do not create author, handle, reposts, views, title, category, thumbnail, image, photo, replies_count, created_at, or created_at_label fields; the UI generates review dates, masked reviewer ids, and counts replies from the replies array.'
+            ? `Web novel review users are readers leaving short review entries on a web novel platform from ${countryLabel}. Generate each entry as a reader review with an integer rating from 1 to 5, review content, like count, and replies. Replies are usually empty or one short comment, but low-rating or strongly negative reviews can receive several comments debating the review. Do not create author, handle, reposts, views, title, category, thumbnail, image, photo, replies_count, created_at, or created_at_label fields; the UI generates review dates, masked reviewer ids, and counts replies from the replies array.`
         : '';
+    const siteRules = [];
+    if (input.site === 'twitter') {
+        siteRules.push(
+            `- For Twitter/X, each post content must be between 10 and ${site.maxChars} characters, with varied random lengths across the timeline.`,
+            '- For Twitter/X, Korean tweets that use many swear words, slang, or memes should sometimes ignore normal spacing.',
+            `- For Twitter/X, include author, handle, reposts, likes, views, replies_count, and reply author/handle fields. You may add "quoted_post" to some posts when a quote tweet makes the reaction more natural; quoted_post must contain author, handle, and the same text field format as a normal post. ${twitterDateRule}`,
+        );
+    } else if (input.site === 'daumCafe') {
+        siteRules.push(
+            '- For Daum Cafe, each post is a board-list item. Include a title, category, short body content, a random number of comments/replies from 0 to 9, view count in views, recommendation count in likes, and comment count in replies_count. If a post has no comments, use an empty replies array and replies_count 0. If it has comments, some may be nested replies using "is_reply": true.',
+            `- ${daumDateRule}`,
+        );
+    } else if (input.site === 'everytime') {
+        siteRules.push(
+            '- For Everytime, each post is an anonymous campus-board item. Include a title, category, short body content, comments/replies, view count in views, like count in likes, and replies_count. If comments exist, some may be nested replies using "is_reply": true.',
+            `- ${everytimeDateRule}`,
+        );
+    } else if (input.site === 'webNovelReview') {
+        siteRules.push(
+            '- For 웹소설 리뷰, include rating as an integer from 1 to 5, review content, likes, and replies. Replies should be rare: most reviews have no replies, a few have one reply, and negative low-rating reviews may have several replies. Do not create author, handle, reposts, views, title, category, thumbnail, image, photo, replies_count, created_at, or created_at_label fields anywhere.',
+        );
+    }
     const postTemplate = buildPostTemplate(input, originalLanguage);
     const customPromptRule = input.custom_prompt
         ? `\nAdditional user direction:\n${input.custom_prompt}\nFollow this direction when it does not conflict with the JSON schema or safety rules.`
@@ -55,7 +80,7 @@ function buildGenerationPrompt(input, transcript, supplementalContext = '') {
         ? 'Reader reaction mode is about audience reactions to a fictional work in the selected medium. Treat the selected chat excerpt as content from that medium, never as the real-world event, broadcast, news, debate, match, performance, scandal, community topic, or lived experience it may depict. Regardless of subject matter, users must react as people who consumed the novel/comic/drama/movie/game content, not as direct witnesses, participants, voters, fans of a real person, or members of the depicted world.'
         : '';
     const modeIntro = input.reaction_mode === 'npc'
-        ? `You generate in-universe community reactions by NPCs and ordinary people who live inside the fictional world.\n\nThe selected chat excerpt is canon context from that world:\n${transcript}\n\nNPC reaction category: ${input.topic_title}\nTarget topic and board direction:\n${input.topic_prompt}\n\nGenerate posts as if the users are reacting to that in-world topic. Do not frame the excerpt as a novel, episode, chapter, author, reader, fandom, or fictional work unless the user's topic prompt explicitly asks for that.`
+        ? `You generate in-universe community reactions by NPCs and ordinary people who live inside the fictional world.\n\nNPCs cannot know facts unless those facts come from events they can actually observe within the world. If they heard something as a rumor, they must mention the source.\n\nThe selected chat excerpt is canon context from that world:\n${transcript}\n\nNPC reaction category: ${input.topic_title}\nTarget topic and board direction:\n${input.topic_prompt}\n\nGenerate posts as if the users are reacting to that in-world topic. Do not frame the excerpt as a novel, episode, chapter, author, reader, fandom, or fictional work unless the user's topic prompt explicitly asks for that.`
         : buildReaderModeIntro(input, transcript);
 
     return `
@@ -71,6 +96,7 @@ ${readerConsumptionRule}
 ${siteCultureRule}
 ${customPromptRule}
 ${supplementalRule}
+${npcDateDiscipline}
 
 Rules:
 - Return raw valid JSON only. Start with "{" and end with "}". Do not wrap the JSON in markdown code fences.
@@ -84,13 +110,7 @@ ${dateRule}
 - In reader reaction mode, never write reactions as if users directly witnessed or participated in the event itself. They are readers/viewers/players discussing the work, chapter, episode, scene, route, or story content.
 - When original preservation is off, include only the base "content" field and omit the "original" and "translation" keys entirely from every post and reply.
 - When original preservation is on, include only "original" and "translation" for text. Do not create the base "content" field anywhere because it duplicates translation.content.
-- For Twitter/X, each post content must be between 10 and ${site.maxChars} characters, with varied random lengths across the timeline.
-- For Twitter/X, Korean tweets that use many swear words, slang, or memes should sometimes ignore normal spacing.
-- For Twitter/X, include author, handle, reposts, likes, views, replies_count, and reply author/handle fields. You may add "quoted_post" to some posts when a quote tweet makes the reaction more natural; quoted_post must contain author, handle, and the same text field format as a normal post. ${twitterDateRule}
-- For Daum Cafe, each post is a board-list item. Include a title, category, short body content, a random number of comments/replies from 0 to 9, view count in views, recommendation count in likes, and comment count in replies_count. If a post has no comments, use an empty replies array and replies_count 0. If it has comments, some may be nested replies using "is_reply": true.
-- For Daum Cafe, ${daumDateRule}
-- For Everytime, each post is an anonymous campus-board item. Include a title, category, short body content, comments/replies, view count in views, like count in likes, and replies_count. If comments exist, some may be nested replies using "is_reply": true. ${everytimeDateRule}
-- For 웹소설 리뷰, include rating as an integer from 1 to 5, review content, likes, and replies. Replies should be rare: most reviews have no replies, a few have one reply, and negative low-rating reviews may have several replies. Do not create author, handle, reposts, views, title, category, thumbnail, image, photo, replies_count, created_at, or created_at_label fields anywhere.
+${siteRules.join('\n')}
 - Do not generate icons, emoji, HTML, CSS, or markdown.
 - Do not include real usernames of private individuals.
 `.trim();

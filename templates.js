@@ -718,10 +718,10 @@ function renderTwitterReply(reply, result, hasFollowingReply = false, referenceD
     `;
 }
 
-function renderDaumListItem(post, postKey, isLatestResult = false, result = null) {
+function renderDaumListItem(post, postKey, isLatestResult = false, result = null, referenceDate = null) {
     const commentCount = getPostReplyCount(post);
     const author = getDaumAuthor(post.author);
-    const createdAtLabel = formatDaumDate(post.created_at, getResultReferenceDate(result));
+    const createdAtLabel = formatDaumDate(post.created_at, referenceDate || getResultReferenceDate(result));
 
     return `
         <article class="crx-post crx-daum-list-item" data-post-key="${escapeHtml(postKey)}" role="button" tabindex="0">
@@ -743,9 +743,8 @@ function renderDaumListItem(post, postKey, isLatestResult = false, result = null
     `;
 }
 
-function renderDaumPost(post, result, postKey = getPostKey(result.id, post.id)) {
+function renderDaumPost(post, result, postKey = getPostKey(result.id, post.id), referenceDate = getResultReferenceDate(result)) {
     const { translated, original } = getPostTextPair(post, result);
-    const referenceDate = getResultReferenceDate(result);
     const replies = post.replies.map(reply => renderDaumReply(reply, result, referenceDate)).join('');
     const commentCount = getPostReplyCount(post);
     const author = getDaumAuthor(post.author);
@@ -825,10 +824,10 @@ function getEverytimeAnonymousName(value, fallback = 1) {
     return fallback <= 1 ? '익명' : `익명${fallback}`;
 }
 
-function renderEverytimeListItem(post, result, postKey) {
+function renderEverytimeListItem(post, result, postKey, referenceDate = getResultReferenceDate(result)) {
     const commentCount = getPostReplyCount(post);
     const translated = getPostText(post, result, false) || post.content || '';
-    const createdAtLabel = formatTwitterDate(post.created_at, getResultReferenceDate(result));
+    const createdAtLabel = formatTwitterDate(post.created_at, referenceDate);
 
     return `
         <article class="crx-post crx-daum-list-item crx-everytime-list-item" data-post-key="${escapeHtml(postKey)}" role="button" tabindex="0">
@@ -848,9 +847,8 @@ function renderEverytimeListItem(post, result, postKey) {
     `;
 }
 
-function renderEverytimePost(post, result, postKey = getPostKey(result.id, post.id)) {
+function renderEverytimePost(post, result, postKey = getPostKey(result.id, post.id), referenceDate = getResultReferenceDate(result)) {
     const { translated, original } = getPostTextPair(post, result);
-    const referenceDate = getResultReferenceDate(result);
     const replies = post.replies.map((reply, index) => renderEverytimeReply(reply, result, index + 1, referenceDate)).join('');
     const commentCount = getPostReplyCount(post);
     const createdAtLabel = formatEverytimeDetailDate(post.created_at);

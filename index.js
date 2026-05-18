@@ -12,8 +12,8 @@ const EXTENSION_BASE_URL = (() => {
         ? new URL('.', src).href
         : new URL(`/scripts/extensions/third-party/${MODULE_NAME}/`, window.location.href).href;
 })();
-const TEMPLATE_SCRIPT_VERSION = '20260515-npc-display-date-1';
-const PROMPT_SCRIPT_VERSION = '20260515-npc-ai-dates-1';
+const TEMPLATE_SCRIPT_VERSION = '20260518-board-reference-date-1';
+const PROMPT_SCRIPT_VERSION = '20260518-npc-date-discipline-1';
 const STORAGE_SCRIPT_VERSION = '20260515-storage-1';
 const FILE_PREFIX = 'crx';
 const JSON_INDENT = 2;
@@ -119,6 +119,7 @@ const state = {
     communityItemCursor: 0,
     communityResults: new Map(),
     communityPosts: [],
+    communityReferenceDate: null,
     isLoadingCommunity: false,
     hasMoreCommunityItems: false,
     renderedCount: 0,
@@ -629,13 +630,13 @@ async function initializeTemplates() {
         },
         daumCafe: {
             viewType: 'board',
-            renderListItem: entry => templates.renderDaumListItem(entry.post, entry.key, entry.result?.id === state.latestCommunityResultId, entry.result),
-            renderDetail: entry => templates.renderDaumPost(entry.post, entry.result, entry.key),
+            renderListItem: (entry, referenceDate) => templates.renderDaumListItem(entry.post, entry.key, entry.result?.id === state.latestCommunityResultId, entry.result, referenceDate),
+            renderDetail: (entry, referenceDate) => templates.renderDaumPost(entry.post, entry.result, entry.key, referenceDate),
         },
         everytime: {
             viewType: 'board',
-            renderListItem: entry => templates.renderEverytimeListItem(entry.post, entry.result, entry.key),
-            renderDetail: entry => templates.renderEverytimePost(entry.post, entry.result, entry.key),
+            renderListItem: (entry, referenceDate) => templates.renderEverytimeListItem(entry.post, entry.result, entry.key, referenceDate),
+            renderDetail: (entry, referenceDate) => templates.renderEverytimePost(entry.post, entry.result, entry.key, referenceDate),
         },
     });
 }
@@ -1965,6 +1966,7 @@ function resetCommunityState(index, viewKey, preferredResultId = '') {
     state.communityItemCursor = 0;
     state.communityResults = new Map();
     state.communityPosts = [];
+    state.communityReferenceDate = null;
     state.hasMoreCommunityItems = state.communityItems.length > 0;
 }
 
@@ -1978,6 +1980,15 @@ function parsePostKey(value) {
         resultId,
         postId: postParts.join('::'),
     };
+}
+
+function getCommunityReferenceDate() {
+    const newestTime = state.communityPosts
+        .map(entry => getDateOrNull(entry.post?.created_at)?.getTime())
+        .filter(Number.isFinite)
+        .reduce((newest, time) => Math.max(newest, time), -Infinity);
+
+    return Number.isFinite(newestTime) ? new Date(newestTime) : null;
 }
 
 async function loadNextCommunityResult() {
@@ -1998,6 +2009,7 @@ async function loadNextCommunityResult() {
         post,
         result,
     })));
+    state.communityReferenceDate = getCommunityReferenceDate();
     state.hasMoreCommunityItems = state.communityItemCursor < state.communityItems.length;
     return true;
 }
@@ -2080,7 +2092,7 @@ function renderBoardList(reset = false) {
         : state.renderedCount + VIEW_PAGE_SIZE;
     const posts = state.communityPosts.slice(state.renderedCount, targetCount);
     const renderer = getCommunityRenderer();
-    const html = posts.map(entry => renderer.renderListItem(entry)).join('');
+    const html = posts.map(entry => renderer.renderListItem(entry, state.communityReferenceDate)).join('');
     list.insertAdjacentHTML('beforeend', html);
     state.renderedCount += posts.length;
     if (reset) {
@@ -2102,7 +2114,7 @@ function renderBoardDetail() {
         return;
     }
 
-    state.viewerModal.querySelector('#crx-post-list').innerHTML = getCommunityRenderer().renderDetail(entry);
+    state.viewerModal.querySelector('#crx-post-list').innerHTML = getCommunityRenderer().renderDetail(entry, state.communityReferenceDate);
 }
 
 async function deleteSelectedPosts() {
