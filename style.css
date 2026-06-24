@@ -28,6 +28,30 @@
     backdrop-filter: blur(4px);
 }
 
+.crx-post-editor-modal {
+    z-index: 10002;
+    padding: 12px;
+}
+
+.crx-post-editor-modal .crx-popup {
+    max-width: 540px;
+    max-height: calc(100vh - 48px);
+}
+
+.crx-post-editor .crx-sheet {
+    flex-basis: auto;
+}
+
+.crx-post-editor .crx-textarea {
+    min-height: 96px;
+}
+
+.crx-post-editor-section-title {
+    margin: 2px 0 8px;
+    color: var(--crx-muted);
+    font-size: 0.82rem;
+    font-weight: 700;
+}
 .crx-popup {
     position: relative;
     z-index: 1;
@@ -568,12 +592,33 @@
     white-space: nowrap;
 }
 
+#crx-daum-edit,
+#crx-everytime-edit,
+#crx-webnovel-edit {
+    cursor: pointer;
+}
+
+#crx-daum-edit:hover,
+#crx-everytime-edit:hover,
+#crx-webnovel-edit:hover {
+    opacity: 0.72;
+}
 .crx-twitter-more {
+    flex: 0 0 auto;
     margin-left: auto;
+    border: 0;
+    padding: 3px;
+    background: transparent;
     color: #c7c7c7;
+    font: inherit;
     font-size: 0.9rem;
     line-height: 1;
+    cursor: pointer;
     transform: rotate(90deg);
+}
+
+.crx-twitter-more:hover {
+    color: #536471;
 }
 
 .crx-twitter-author {
@@ -862,10 +907,8 @@
     margin: 0 auto;
     background: #ffffff;
     color: #111111;
-    border: 1px solid #eeeeee;
     border-radius: 0;
     overflow: hidden;
-    font-family: "Apple SD Gothic Neo", "Malgun Gothic", "맑은 고딕", sans-serif;
 }
 
 .crx-daum-appbar {
@@ -1130,7 +1173,6 @@
     padding: 15px 18px 13px;
     border-bottom: 1px solid #eeeeee;
     background: #ffffff;
-    font-family: "Apple SD Gothic Neo", "Malgun Gothic", "맑은 고딕", sans-serif;
 }
 
 .crx-viewer.is-delete-mode .crx-everytime-list-item {
@@ -1216,7 +1258,6 @@
     margin: 0 auto;
     background: #ffffff;
     color: #2b2b2b;
-    font-family: "Apple SD Gothic Neo", "Malgun Gothic", "맑은 고딕", sans-serif;
 }
 
 .crx-everytime-appbar {

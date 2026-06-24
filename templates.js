@@ -349,6 +349,166 @@ globalThis.CommunityReactionsTemplates = (() => {
             return `<label class="crx-post-check"><input type="checkbox" value="${escapeHtml(postKey)}" aria-label="게시글 선택"></label>`;
         }
 
+        function renderPostEditorContentFields(item, result, prefix) {
+            const preserveOriginal = Boolean(result?.generation?.preserve_original);
+            if (preserveOriginal) {
+                return `
+                <label class="crx-field-wrap">
+                    <span class="crx-label">&#48264;&#50669; &#50616;&#50612;</span>
+                    <input id="${prefix}-translation-language" class="crx-field" type="text" value="${escapeHtml(item?.translation?.language || result?.generation?.output_language || '')}">
+                </label>
+                <label class="crx-field-wrap">
+                    <span class="crx-label">&#50896;&#47928; &#50616;&#50612;</span>
+                    <input id="${prefix}-original-language" class="crx-field" type="text" value="${escapeHtml(item?.original?.language || '')}">
+                </label>
+                <label class="crx-field-wrap crx-full-span">
+                    <span class="crx-label">&#48264;&#50669; &#45236;&#50857;</span>
+                    <textarea id="${prefix}-translation-content" class="crx-field crx-textarea">${escapeHtml(item?.translation?.content || '')}</textarea>
+                </label>
+                <label class="crx-field-wrap crx-full-span">
+                    <span class="crx-label">&#50896;&#47928; &#45236;&#50857;</span>
+                    <textarea id="${prefix}-original-content" class="crx-field crx-textarea">${escapeHtml(item?.original?.content || '')}</textarea>
+                </label>
+            `;
+            }
+
+            return `
+                <label class="crx-field-wrap crx-full-span">
+                    <span class="crx-label">&#45236;&#50857;</span>
+                    <textarea id="${prefix}-content" class="crx-field crx-textarea">${escapeHtml(item?.content || '')}</textarea>
+                </label>
+            `;
+        }
+
+        function renderPostEditorNumberField(id, label, value) {
+            const number = Number(value || 0);
+            return `
+                <label class="crx-field-wrap">
+                    <span class="crx-label">${label}</span>
+                    <input id="${id}" class="crx-field" type="number" min="0" step="1" value="${Number.isFinite(number) ? Math.max(0, Math.round(number)) : 0}">
+                </label>
+            `;
+        }
+
+        function renderTwitterPostEditorSection(item, result, prefix = 'crx-edit', includeMetrics = true) {
+            const replyCount = Number.isFinite(Number(item?.replies_count))
+                ? Number(item.replies_count)
+                : Array.isArray(item?.replies) ? item.replies.length : 0;
+            return `
+        <div class="crx-section crx-grid-2">
+            <label class="crx-field-wrap">
+                <span class="crx-label">&#51089;&#49457;&#51088;</span>
+                <input id="${prefix}-author" class="crx-field" type="text" value="${escapeHtml(item?.author || '')}">
+            </label>
+            <label class="crx-field-wrap">
+                <span class="crx-label">&#54648;&#46308;</span>
+                <input id="${prefix}-handle" class="crx-field" type="text" value="${escapeHtml(item?.handle || '')}">
+            </label>
+            <label class="crx-field-wrap crx-full-span">
+                <span class="crx-label">&#51089;&#49457; &#49884;&#44036;</span>
+                <input id="${prefix}-created-at" class="crx-field" type="text" value="${escapeHtml(item?.created_at || '')}">
+            </label>
+            ${renderPostEditorContentFields(item, result, prefix)}
+            ${includeMetrics ? renderPostEditorNumberField(`${prefix}-likes`, '&#51339;&#50500;&#50836;', item?.likes) : ''}
+            ${includeMetrics ? renderPostEditorNumberField(`${prefix}-reposts`, '&#51116;&#44172;&#49884;', item?.reposts) : ''}
+            ${includeMetrics ? renderPostEditorNumberField(`${prefix}-views`, '&#51312;&#54924;', item?.views) : ''}
+            ${includeMetrics ? renderPostEditorNumberField(`${prefix}-replies-count`, '&#45843;&#44544; &#49688;', replyCount) : ''}
+            <label class="crx-check-row crx-full-span">
+                <input id="${prefix}-is-private" type="checkbox" ${item?.is_private ? 'checked' : ''}>
+                <span class="crx-check-text"><span>&#48708;&#44277;&#44060; &#44228;&#51221;</span></span>
+            </label>
+        </div>
+    `;
+        }
+
+        function renderQuotedPostEditorSection(quotedPost, result) {
+            if (!quotedPost) {
+                return '';
+            }
+
+            return `
+        <div class="crx-post-editor-section-title">&#51064;&#50857; &#53944;&#50967;</div>
+        ${renderTwitterPostEditorSection(quotedPost, result, 'crx-edit-quote', false)}
+    `;
+        }
+
+        function renderBoardPostEditorSection(item, result) {
+            const replyCount = Number.isFinite(Number(item?.replies_count))
+                ? Number(item.replies_count)
+                : Array.isArray(item?.replies) ? item.replies.length : 0;
+            return `
+        <div class="crx-section crx-grid-2">
+            <label class="crx-field-wrap">
+                <span class="crx-label">&#44172;&#49884;&#54032;</span>
+                <input id="crx-edit-category" class="crx-field" type="text" value="${escapeHtml(item?.category || '')}">
+            </label>
+            <label class="crx-field-wrap">
+                <span class="crx-label">&#51228;&#47785;</span>
+                <input id="crx-edit-title" class="crx-field" type="text" value="${escapeHtml(item?.title || '')}">
+            </label>
+            <label class="crx-field-wrap crx-full-span">
+                <span class="crx-label">&#51089;&#49457; &#49884;&#44036;</span>
+                <input id="crx-edit-created-at" class="crx-field" type="text" value="${escapeHtml(item?.created_at || '')}">
+            </label>
+            ${renderPostEditorContentFields(item, result, 'crx-edit')}
+            ${renderPostEditorNumberField('crx-edit-likes', '&#51339;&#50500;&#50836;', item?.likes)}
+            ${renderPostEditorNumberField('crx-edit-views', '&#51312;&#54924;', item?.views)}
+            ${renderPostEditorNumberField('crx-edit-replies-count', '&#45843;&#44544; &#49688;', replyCount)}
+        </div>
+    `;
+        }
+
+        function renderWebNovelPostEditorSection(item, result) {
+            const replyCount = Number.isFinite(Number(item?.replies_count))
+                ? Number(item.replies_count)
+                : Array.isArray(item?.replies) ? item.replies.length : 0;
+            const rating = Math.max(1, Math.min(5, Math.round(Number(item?.rating || 5))));
+            return `
+        <div class="crx-section crx-grid-2">
+            <label class="crx-field-wrap">
+                <span class="crx-label">&#47532;&#48624;&#50612; ID</span>
+                <input id="crx-edit-reviewer-id" class="crx-field" type="text" value="${escapeHtml(item?.reviewer_id || '')}">
+            </label>
+            <label class="crx-field-wrap">
+                <span class="crx-label">&#48324;&#51216;</span>
+                <input id="crx-edit-rating" class="crx-field" type="number" min="1" max="5" step="1" value="${rating}">
+            </label>
+            <label class="crx-field-wrap crx-full-span">
+                <span class="crx-label">&#51089;&#49457; &#49884;&#44036;</span>
+                <input id="crx-edit-created-at" class="crx-field" type="text" value="${escapeHtml(item?.created_at || '')}">
+            </label>
+            ${renderPostEditorContentFields(item, result, 'crx-edit')}
+            ${renderPostEditorNumberField('crx-edit-likes', '&#51339;&#50500;&#50836;', item?.likes)}
+            ${renderPostEditorNumberField('crx-edit-replies-count', '&#45843;&#44544; &#49688;', replyCount)}
+        </div>
+    `;
+        }
+        function renderPostEditorFooter() {
+            return `
+        <div class="crx-footer">
+            <button id="crx-cancel-post-edit" class="crx-secondary-button" type="button">&#52712;&#49548;</button>
+            <button id="crx-save-post-edit" class="crx-primary-button" type="button">&#51200;&#51109;&#54616;&#44592;</button>
+        </div>
+    `;
+        }
+
+        function buildPostEditorHtml(item, result, options = {}) {
+            const site = result?.generation?.site || '';
+            const isBoard = site === 'daumCafe' || site === 'everytime';
+            const body = site === 'webNovelReview'
+                ? renderWebNovelPostEditorSection(item, result)
+                : isBoard
+                    ? renderBoardPostEditorSection(item, result)
+                    : `${renderTwitterPostEditorSection(item, result)}${options.targetType === 'reply' ? '' : renderQuotedPostEditorSection(item?.quoted_post, result)}`;
+            return `
+        <div class="crx-popup crx-post-editor">
+            <div class="crx-sheet">
+                ${body}
+            </div>
+            ${renderPostEditorFooter()}
+        </div>
+    `;
+        }
         function renderOriginalContent(original, className = 'crx-content crx-original') {
             return original ? `<div class="${className}">${escapeHtml(original)}</div>` : '';
         }
@@ -598,7 +758,7 @@ globalThis.CommunityReactionsTemplates = (() => {
                 </div>
                 <div class="crx-webnovel-actions">
                     <button class="crx-webnovel-comment-toggle" type="button" aria-expanded="false" aria-controls="${escapeHtml(repliesId)}">댓글 ${formatDaumNumber(commentCount)}</button>
-                    <span><i class="fa-regular fa-thumbs-up" aria-hidden="true"></i> ${formatDaumNumber(post.likes)}</span>
+                    <span id="crx-webnovel-edit"><i class="fa-regular fa-thumbs-up" aria-hidden="true"></i> ${formatDaumNumber(post.likes)}</span>
                 </div>
             </div>
             <div class="crx-webnovel-date">${escapeHtml(formatReviewDate(post.created_at))} <span>|</span> 신고 · 차단</div>
@@ -634,7 +794,7 @@ globalThis.CommunityReactionsTemplates = (() => {
         function renderTwitterPost(post, result, postKey = getPostKey(result.id, post.id)) {
             const { translated, original } = getPostTextPair(post, result);
             const referenceDate = getResultReferenceDate(result);
-            const replies = post.replies.map((reply, index) => renderTwitterReply(reply, result, index < post.replies.length - 1, referenceDate)).join('');
+            const replies = post.replies.map((reply, index) => renderTwitterReply(reply, result, index < post.replies.length - 1, referenceDate, postKey)).join('');
             const createdAtLabel = formatTwitterDate(post.created_at, referenceDate);
             const commentCount = getPostReplyCount(post);
 
@@ -652,7 +812,7 @@ globalThis.CommunityReactionsTemplates = (() => {
                         ${post.handle ? `<span class="crx-twitter-handle">${escapeHtml(post.handle)}</span>` : ''}
                         <span class="crx-dot">·</span>
                         <span class="crx-twitter-time">${escapeHtml(createdAtLabel)}</span>
-                        <span class="crx-twitter-more" aria-hidden="true"><i class="fa-solid fa-ellipsis"></i></span>
+                        <button class="crx-twitter-more" type="button" data-crx-edit-target="post" data-post-key="${escapeHtml(postKey)}" aria-label="Edit post"><i class="fa-solid fa-ellipsis" aria-hidden="true"></i></button>
                     </div>
                     ${renderTranslationBar(post, result)}
                     <div class="crx-content crx-translated">${escapeHtml(translated)}</div>
@@ -700,7 +860,7 @@ globalThis.CommunityReactionsTemplates = (() => {
     `;
         }
 
-        function renderTwitterReply(reply, result, hasFollowingReply = false, referenceDate = getResultReferenceDate(result)) {
+        function renderTwitterReply(reply, result, hasFollowingReply = false, referenceDate = getResultReferenceDate(result), postKey = '') {
             const { translated, original } = getReplyTextPair(reply, result);
             const createdAtLabel = formatTwitterDate(reply.created_at, referenceDate);
             return `
@@ -715,7 +875,7 @@ globalThis.CommunityReactionsTemplates = (() => {
                     ${reply.handle ? `<span class="crx-twitter-handle">${escapeHtml(reply.handle)}</span>` : ''}
                     <span class="crx-dot">·</span>
                     <span class="crx-twitter-time">${escapeHtml(createdAtLabel)}</span>
-                    <span class="crx-twitter-more" aria-hidden="true"><i class="fa-solid fa-ellipsis"></i></span>
+                    <button class="crx-twitter-more" type="button" data-crx-edit-target="reply" data-post-key="${escapeHtml(postKey)}" data-reply-id="${escapeHtml(reply.id)}" aria-label="Edit reply"><i class="fa-solid fa-ellipsis" aria-hidden="true"></i></button>
                 </div>
                 <div class="crx-content crx-translated">${escapeHtml(translated)}</div>
                 ${renderOriginalContent(original)}
@@ -772,7 +932,7 @@ globalThis.CommunityReactionsTemplates = (() => {
                     <div class="crx-daum-appbar-title">${escapeHtml(getDaumCategory(post))}</div>
                     <div class="crx-daum-appbar-actions" aria-hidden="true">
                         <i class="fa-regular fa-bookmark"></i>
-                        <i class="fa-solid fa-bars"></i>
+                        <i class="fa-solid fa-bars" id="crx-daum-edit"></i>
                     </div>
                 </div>
                 <div class="crx-daum-top">
@@ -793,9 +953,6 @@ globalThis.CommunityReactionsTemplates = (() => {
                     ${renderTranslationBar(post, result)}
                     <div class="crx-content crx-translated">${escapeHtml(translated)}</div>
                     ${renderOriginalContent(original)}
-                    <div class="crx-daum-return-row">
-                        <button class="crx-daum-return-to-list" type="button">목록으로</button>
-                    </div>
                 </div>
                 <div class="crx-daum-comment-area">
                     <div class="crx-daum-comment-head">
@@ -804,6 +961,9 @@ globalThis.CommunityReactionsTemplates = (() => {
                         <span class="crx-daum-comment-total">${formatDaumNumber(commentCount)}</span>
                     </div>
                     <div class="crx-daum-replies">${replies || '<div class="crx-daum-empty-comment">댓글이 없습니다.</div>'}</div>
+                </div>
+                <div class="crx-daum-return-row">
+                    <button class="crx-daum-return-to-list" type="button">목록으로</button>
                 </div>
             </div>
         </article>
@@ -878,7 +1038,7 @@ globalThis.CommunityReactionsTemplates = (() => {
                     </div>
                     <div class="crx-everytime-appbar-actions" aria-hidden="true">
                         <i class="fa-regular fa-bell-slash"></i>
-                        <i class="fa-solid fa-ellipsis-vertical"></i>
+                        <i class="fa-solid fa-ellipsis-vertical" id="crx-everytime-edit"></i>
                     </div>
                 </div>
                 <div class="crx-everytime-article">
@@ -942,6 +1102,7 @@ globalThis.CommunityReactionsTemplates = (() => {
 
         return {
             buildComposerHtml,
+            buildPostEditorHtml,
             buildViewerHtml,
             renderDaumListItem,
             renderDaumPost,

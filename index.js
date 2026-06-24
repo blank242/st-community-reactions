@@ -125,6 +125,7 @@ globalThis.CommunityReactionsExtension = (() => {
     const state = {
         composerModal: null,
         viewerModal: null,
+        postEditorModal: null,
         activeResult: null,
         activeIndex: null,
         activeCommunity: '',
@@ -754,7 +755,12 @@ globalThis.CommunityReactionsExtension = (() => {
         state.composerModal = null;
     }
 
+    function closePostEditor() {
+        state.postEditorModal?.remove();
+        state.postEditorModal = null;
+    }
     function closeViewer() {
+        closePostEditor();
         state.viewerModal?.remove();
         state.viewerModal = null;
         state.activeResult = null;
@@ -2087,13 +2093,21 @@ globalThis.CommunityReactionsExtension = (() => {
 
     async function handleGenerate(root) {
         const button = root.querySelector('#crx-generate');
+        let loadingInterval = null;
         try {
             const input = getComposerInput(root, getContextSafe());
             await persistEditedNpcTopicPrompt(root, input);
             await persistEditedReaderCommunityPrompt(root, input);
             await persistReaderSiteGenerationOptions(root, input);
             button.disabled = true;
-            button.textContent = '반응 서치 중입니다...';
+            const loadingText = '반응 서치 중입니다';
+            let loadingDotCount = 1;
+            const updateLoadingText = () => {
+                button.textContent = loadingText + '.'.repeat(loadingDotCount);
+                loadingDotCount = loadingDotCount === 3 ? 1 : loadingDotCount + 1;
+            };
+            updateLoadingText();
+            loadingInterval = setInterval(updateLoadingText, 600);
             const result = await generateReaction(input);
             await saveResult(result);
             closeComposer();
@@ -2105,6 +2119,10 @@ globalThis.CommunityReactionsExtension = (() => {
             toastr.error(message);
             button.disabled = false;
             button.textContent = '생성하기';
+        } finally {
+            if (loadingInterval) {
+                clearInterval(loadingInterval);
+            }
         }
     }
 
@@ -2260,6 +2278,27 @@ globalThis.CommunityReactionsExtension = (() => {
         modal.querySelector('#crx-delete-selected-posts').addEventListener('click', () => void deleteSelectedPosts());
         modal.querySelector('#crx-delete-category').addEventListener('click', () => void deleteCurrentCategoryFiles(index));
         modal.querySelector('#crx-post-list').addEventListener('click', event => {
+            const boardEdit = event.target.closest?.('#crx-daum-edit, #crx-everytime-edit, #crx-webnovel-edit');
+            if (boardEdit) {
+                event.preventDefault();
+                event.stopPropagation();
+                if (!state.deleteMode) {
+                    const postElement = boardEdit.closest('.crx-post');
+                    void openPostEditor(postElement?.dataset?.postKey || '', 'post');
+                }
+                return;
+            }
+            const twitterMore = event.target.closest?.('.crx-twitter-more');
+            if (twitterMore) {
+                event.preventDefault();
+                event.stopPropagation();
+                if (!state.deleteMode) {
+                    const postElement = twitterMore.closest('.crx-twitter-post');
+                    const postKey = twitterMore.dataset.postKey || postElement?.dataset?.postKey || '';
+                    void openPostEditor(postKey, twitterMore.dataset.crxEditTarget || 'post', twitterMore.dataset.replyId || '');
+                }
+                return;
+            }
             const toggle = event.target.closest?.('.crx-translation-toggle');
             if (toggle) {
                 const post = toggle.closest('.crx-post');
@@ -2313,6 +2352,176 @@ globalThis.CommunityReactionsExtension = (() => {
         });
     }
 
+    function getPostEditorTarget(postKey, targetType = 'post', replyId = '') {
+        const entry = state.communityPosts.find(item => item.key === postKey);
+        if (!entry) {
+            return null;
+        }
+
+        if (targetType === 'reply') {
+            const reply = Array.isArray(entry.post?.replies)
+                ? entry.post.replies.find(item => item.id === replyId)
+                : null;
+            if (!reply) {
+                return null;
+            }
+            return { entry, result: entry.result, item: reply, targetType, replyId };
+        }
+
+        return { entry, result: entry.result, item: entry.post, targetType: 'post', replyId: '' };
+    }
+
+    function openPostEditor(postKey, targetType = 'post', replyId = '') {
+        const target = getPostEditorTarget(postKey, targetType, replyId);
+        if (!target) {
+            toastr.error('\uC218\uC815\uD560 \uAC8C\uC2DC\uAE00\uC744 \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.');
+            return;
+        }
+
+        closePostEditor();
+        const modal = createModal(templates.buildPostEditorHtml(target.item, target.result, { targetType }), 'crx-post-editor-modal');
+        state.postEditorModal = modal;
+        const root = modal.querySelector('.crx-post-editor');
+        modal.querySelector('.crx-modal-backdrop').addEventListener('click', closePostEditor);
+        root.querySelector('#crx-cancel-post-edit').addEventListener('click', closePostEditor);
+        root.querySelector('#crx-save-post-edit').addEventListener('click', () => void handleSavePostEditor(root, target));
+    }
+
+    function getPostEditorInput(root, id) {
+        return root.querySelector(`#${id}`);
+    }
+
+    function readPostEditorString(root, id) {
+        return String(getPostEditorInput(root, id)?.value || '').trim();
+    }
+
+    function readPostEditorText(root, id) {
+        return String(getPostEditorInput(root, id)?.value || '');
+    }
+
+    function readPostEditorNumber(root, id) {
+        const number = Number(getPostEditorInput(root, id)?.value || 0);
+        return Number.isFinite(number) ? Math.max(0, Math.round(number)) : 0;
+    }
+
+    function applyPostEditorContentValues(root, item, result, prefix) {
+        if (result?.generation?.preserve_original) {
+            item.translation = item.translation && typeof item.translation === 'object' ? item.translation : {};
+            item.original = item.original && typeof item.original === 'object' ? item.original : {};
+            item.translation.language = readPostEditorString(root, `${prefix}-translation-language`);
+            item.translation.content = readPostEditorText(root, `${prefix}-translation-content`);
+            item.original.language = readPostEditorString(root, `${prefix}-original-language`);
+            item.original.content = readPostEditorText(root, `${prefix}-original-content`);
+            return;
+        }
+
+        item.content = readPostEditorText(root, `${prefix}-content`);
+    }
+
+    function setPostEditorNumberValue(root, item, key, id) {
+        if (!getPostEditorInput(root, id)) {
+            return;
+        }
+        item[key] = readPostEditorNumber(root, id);
+    }
+
+    function applyTwitterPostEditorValues(root, item, result, prefix = 'crx-edit') {
+        const author = readPostEditorString(root, `${prefix}-author`);
+        item.author = author || item.author || '';
+        item.handle = readPostEditorString(root, `${prefix}-handle`);
+        const createdAt = readPostEditorString(root, `${prefix}-created-at`);
+        if (createdAt) {
+            item.created_at = createdAt;
+        }
+        const privateInput = getPostEditorInput(root, `${prefix}-is-private`);
+        if (privateInput) {
+            item.is_private = Boolean(privateInput.checked);
+        }
+        setPostEditorNumberValue(root, item, 'likes', `${prefix}-likes`);
+        setPostEditorNumberValue(root, item, 'reposts', `${prefix}-reposts`);
+        setPostEditorNumberValue(root, item, 'views', `${prefix}-views`);
+        setPostEditorNumberValue(root, item, 'replies_count', `${prefix}-replies-count`);
+        applyPostEditorContentValues(root, item, result, prefix);
+    }
+
+    function applyCommonPostEditorValues(root, item, result, prefix = 'crx-edit') {
+        const createdAt = readPostEditorString(root, `${prefix}-created-at`);
+        if (createdAt) {
+            item.created_at = createdAt;
+        }
+        setPostEditorNumberValue(root, item, 'likes', `${prefix}-likes`);
+        setPostEditorNumberValue(root, item, 'views', `${prefix}-views`);
+        setPostEditorNumberValue(root, item, 'replies_count', `${prefix}-replies-count`);
+        applyPostEditorContentValues(root, item, result, prefix);
+    }
+
+    function applyBoardPostEditorValues(root, item, result) {
+        item.category = readPostEditorString(root, 'crx-edit-category') || item.category || '';
+        item.title = readPostEditorString(root, 'crx-edit-title') || item.title || '';
+        applyCommonPostEditorValues(root, item, result);
+    }
+
+    function applyWebNovelPostEditorValues(root, item, result) {
+        item.reviewer_id = readPostEditorString(root, 'crx-edit-reviewer-id') || item.reviewer_id || '';
+        const rating = readPostEditorNumber(root, 'crx-edit-rating');
+        item.rating = Math.max(1, Math.min(5, rating || 1));
+        applyCommonPostEditorValues(root, item, result);
+    }
+
+    function applyPostEditorValues(root, target) {
+        const site = target.result?.generation?.site || '';
+        if (site === 'daumCafe' || site === 'everytime') {
+            applyBoardPostEditorValues(root, target.item, target.result);
+            return;
+        }
+        if (site === 'webNovelReview') {
+            applyWebNovelPostEditorValues(root, target.item, target.result);
+            return;
+        }
+
+        applyTwitterPostEditorValues(root, target.item, target.result);
+        if (target.item?.quoted_post) {
+            applyTwitterPostEditorValues(root, target.item.quoted_post, target.result, 'crx-edit-quote');
+        }
+    }
+    function rerenderEditedCommunityPost(entry) {
+        const renderer = getCommunityRenderer(entry.result?.generation?.site || state.activeCommunity);
+        if (renderer?.viewType === 'board') {
+            if (state.boardDetailPostKey === entry.key) {
+                renderBoardDetail();
+            } else {
+                renderBoardList(true);
+            }
+            return;
+        }
+
+        const postElement = state.viewerModal?.querySelector(`.crx-post[data-post-key="${cssEscape(entry.key)}"]`);
+        if (!postElement || !renderer?.renderPost) {
+            return;
+        }
+        postElement.outerHTML = renderer.renderPost(entry.post, entry.result, entry.key);
+    }
+
+    async function handleSavePostEditor(root, target) {
+        const button = root.querySelector('#crx-save-post-edit');
+        try {
+            button.disabled = true;
+            applyPostEditorValues(root, target);
+            target.result.updated_at = new Date().toISOString();
+            await updateResult(target.result);
+            state.communityResults.set(target.result.id, target.result);
+            if (state.activeResult?.id === target.result.id) {
+                state.activeResult = target.result;
+            }
+            rerenderEditedCommunityPost(target.entry);
+            closePostEditor();
+            toastr.success('\uC800\uC7A5\uD588\uC2B5\uB2C8\uB2E4.');
+        } catch (error) {
+            toastr.error(error?.message || '\uAC8C\uC2DC\uAE00 \uC800\uC7A5\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.');
+        } finally {
+            button.disabled = false;
+        }
+    }
     function toggleDeleteMode(force = null) {
         if (!state.viewerModal) {
             return;
