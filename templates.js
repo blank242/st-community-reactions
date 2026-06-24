@@ -119,7 +119,7 @@ globalThis.CommunityReactionsTemplates = (() => {
                 </label>
                 <label class="crx-field-wrap crx-full-span">
                     <span class="crx-label">커뮤니티 프롬프트</span>
-                    <textarea id="crx-reader-community-prompt" class="crx-field crx-textarea" placeholder="예: - 야구를 좋아하는 유저들로만 이루어진 타임라인.&#13;&#10;- 반드시 야구 이야기를 내용에 포함해라.&#13;&#10;- 욕설, 비속어를 많이 사용할 것."></textarea>
+                    <textarea id="crx-reader-community-prompt" class="crx-field crx-textarea" placeholder="예: - 야구를 좋아하는 유저들로만 이루어진 타임라인.\n- 반드시 야구 이야기를 내용에 포함해라.\n- 욕설, 비속어를 많이 사용할 것."></textarea>
                 </label>
                 <div class="crx-topic-form-actions crx-full-span">
                     <button id="crx-save-reader-community" class="crx-primary-button" type="button">커뮤니티 추가</button>
@@ -354,27 +354,27 @@ globalThis.CommunityReactionsTemplates = (() => {
             if (preserveOriginal) {
                 return `
                 <label class="crx-field-wrap">
-                    <span class="crx-label">&#48264;&#50669; &#50616;&#50612;</span>
+                    <span class="crx-label">번역 언어</span>
                     <input id="${prefix}-translation-language" class="crx-field" type="text" value="${escapeHtml(item?.translation?.language || result?.generation?.output_language || '')}">
                 </label>
                 <label class="crx-field-wrap">
-                    <span class="crx-label">&#50896;&#47928; &#50616;&#50612;</span>
+                    <span class="crx-label">원문 언어</span>
                     <input id="${prefix}-original-language" class="crx-field" type="text" value="${escapeHtml(item?.original?.language || '')}">
                 </label>
-                <label class="crx-field-wrap crx-full-span">
-                    <span class="crx-label">&#48264;&#50669; &#45236;&#50857;</span>
+                <label class="crx-field-wrap">
+                    <span class="crx-label">번역 내용</span>
                     <textarea id="${prefix}-translation-content" class="crx-field crx-textarea">${escapeHtml(item?.translation?.content || '')}</textarea>
                 </label>
-                <label class="crx-field-wrap crx-full-span">
-                    <span class="crx-label">&#50896;&#47928; &#45236;&#50857;</span>
+                <label class="crx-field-wrap">
+                    <span class="crx-label">원문 내용</span>
                     <textarea id="${prefix}-original-content" class="crx-field crx-textarea">${escapeHtml(item?.original?.content || '')}</textarea>
                 </label>
             `;
             }
 
             return `
-                <label class="crx-field-wrap crx-full-span">
-                    <span class="crx-label">&#45236;&#50857;</span>
+                <label class="crx-field-wrap">
+                    <span class="crx-label">내용</span>
                     <textarea id="${prefix}-content" class="crx-field crx-textarea">${escapeHtml(item?.content || '')}</textarea>
                 </label>
             `;
@@ -395,27 +395,27 @@ globalThis.CommunityReactionsTemplates = (() => {
                 ? Number(item.replies_count)
                 : Array.isArray(item?.replies) ? item.replies.length : 0;
             return `
-        <div class="crx-section crx-grid-2">
+        <div class="crx-section">
             <label class="crx-field-wrap">
-                <span class="crx-label">&#51089;&#49457;&#51088;</span>
+                <span class="crx-label">작성자</span>
                 <input id="${prefix}-author" class="crx-field" type="text" value="${escapeHtml(item?.author || '')}">
             </label>
             <label class="crx-field-wrap">
-                <span class="crx-label">&#54648;&#46308;</span>
+                <span class="crx-label">아이디</span>
                 <input id="${prefix}-handle" class="crx-field" type="text" value="${escapeHtml(item?.handle || '')}">
             </label>
-            <label class="crx-field-wrap crx-full-span">
-                <span class="crx-label">&#51089;&#49457; &#49884;&#44036;</span>
+            <label class="crx-field-wrap">
+                <span class="crx-label">작성 시간</span>
                 <input id="${prefix}-created-at" class="crx-field" type="text" value="${escapeHtml(item?.created_at || '')}">
             </label>
             ${renderPostEditorContentFields(item, result, prefix)}
-            ${includeMetrics ? renderPostEditorNumberField(`${prefix}-likes`, '&#51339;&#50500;&#50836;', item?.likes) : ''}
-            ${includeMetrics ? renderPostEditorNumberField(`${prefix}-reposts`, '&#51116;&#44172;&#49884;', item?.reposts) : ''}
-            ${includeMetrics ? renderPostEditorNumberField(`${prefix}-views`, '&#51312;&#54924;', item?.views) : ''}
-            ${includeMetrics ? renderPostEditorNumberField(`${prefix}-replies-count`, '&#45843;&#44544; &#49688;', replyCount) : ''}
-            <label class="crx-check-row crx-full-span">
+            ${includeMetrics ? renderPostEditorNumberField(`${prefix}-likes`, '좋아요', item?.likes) : ''}
+            ${includeMetrics ? renderPostEditorNumberField(`${prefix}-reposts`, '재게시', item?.reposts) : ''}
+            ${includeMetrics ? renderPostEditorNumberField(`${prefix}-views`, '조회', item?.views) : ''}
+            ${includeMetrics ? renderPostEditorNumberField(`${prefix}-replies-count`, '댓글 수', replyCount) : ''}
+            <label class="crx-check-row">
                 <input id="${prefix}-is-private" type="checkbox" ${item?.is_private ? 'checked' : ''}>
-                <span class="crx-check-text"><span>&#48708;&#44277;&#44060; &#44228;&#51221;</span></span>
+                <span class="crx-check-text"><span>비공개 계정</span></span>
             </label>
         </div>
     `;
@@ -427,7 +427,7 @@ globalThis.CommunityReactionsTemplates = (() => {
             }
 
             return `
-        <div class="crx-post-editor-section-title">&#51064;&#50857; &#53944;&#50967;</div>
+        <div class="crx-post-editor-section-title">인용 트윗</div>
         ${renderTwitterPostEditorSection(quotedPost, result, 'crx-edit-quote', false)}
     `;
         }
@@ -437,23 +437,23 @@ globalThis.CommunityReactionsTemplates = (() => {
                 ? Number(item.replies_count)
                 : Array.isArray(item?.replies) ? item.replies.length : 0;
             return `
-        <div class="crx-section crx-grid-2">
+        <div class="crx-section">
             <label class="crx-field-wrap">
-                <span class="crx-label">&#44172;&#49884;&#54032;</span>
+                <span class="crx-label">게시판</span>
                 <input id="crx-edit-category" class="crx-field" type="text" value="${escapeHtml(item?.category || '')}">
             </label>
             <label class="crx-field-wrap">
-                <span class="crx-label">&#51228;&#47785;</span>
+                <span class="crx-label">제목</span>
                 <input id="crx-edit-title" class="crx-field" type="text" value="${escapeHtml(item?.title || '')}">
             </label>
-            <label class="crx-field-wrap crx-full-span">
-                <span class="crx-label">&#51089;&#49457; &#49884;&#44036;</span>
+            <label class="crx-field-wrap">
+                <span class="crx-label">작성 시간</span>
                 <input id="crx-edit-created-at" class="crx-field" type="text" value="${escapeHtml(item?.created_at || '')}">
             </label>
             ${renderPostEditorContentFields(item, result, 'crx-edit')}
-            ${renderPostEditorNumberField('crx-edit-likes', '&#51339;&#50500;&#50836;', item?.likes)}
-            ${renderPostEditorNumberField('crx-edit-views', '&#51312;&#54924;', item?.views)}
-            ${renderPostEditorNumberField('crx-edit-replies-count', '&#45843;&#44544; &#49688;', replyCount)}
+            ${renderPostEditorNumberField('crx-edit-likes', '좋아요', item?.likes)}
+            ${renderPostEditorNumberField('crx-edit-views', '조회', item?.views)}
+            ${renderPostEditorNumberField('crx-edit-replies-count', '댓글 수', replyCount)}
         </div>
     `;
         }
@@ -464,30 +464,30 @@ globalThis.CommunityReactionsTemplates = (() => {
                 : Array.isArray(item?.replies) ? item.replies.length : 0;
             const rating = Math.max(1, Math.min(5, Math.round(Number(item?.rating || 5))));
             return `
-        <div class="crx-section crx-grid-2">
+        <div class="crx-section">
             <label class="crx-field-wrap">
-                <span class="crx-label">&#47532;&#48624;&#50612; ID</span>
+                <span class="crx-label">리뷰어 ID</span>
                 <input id="crx-edit-reviewer-id" class="crx-field" type="text" value="${escapeHtml(item?.reviewer_id || '')}">
             </label>
             <label class="crx-field-wrap">
-                <span class="crx-label">&#48324;&#51216;</span>
+                <span class="crx-label">별점</span>
                 <input id="crx-edit-rating" class="crx-field" type="number" min="1" max="5" step="1" value="${rating}">
             </label>
-            <label class="crx-field-wrap crx-full-span">
-                <span class="crx-label">&#51089;&#49457; &#49884;&#44036;</span>
+            <label class="crx-field-wrap">
+                <span class="crx-label">작성 시간</span>
                 <input id="crx-edit-created-at" class="crx-field" type="text" value="${escapeHtml(item?.created_at || '')}">
             </label>
             ${renderPostEditorContentFields(item, result, 'crx-edit')}
-            ${renderPostEditorNumberField('crx-edit-likes', '&#51339;&#50500;&#50836;', item?.likes)}
-            ${renderPostEditorNumberField('crx-edit-replies-count', '&#45843;&#44544; &#49688;', replyCount)}
+            ${renderPostEditorNumberField('crx-edit-likes', '좋아요', item?.likes)}
+            ${renderPostEditorNumberField('crx-edit-replies-count', '댓글 수', replyCount)}
         </div>
     `;
         }
         function renderPostEditorFooter() {
             return `
         <div class="crx-footer">
-            <button id="crx-cancel-post-edit" class="crx-secondary-button" type="button">&#52712;&#49548;</button>
-            <button id="crx-save-post-edit" class="crx-primary-button" type="button">&#51200;&#51109;&#54616;&#44592;</button>
+            <button id="crx-cancel-post-edit" class="crx-secondary-button" type="button">취소</button>
+            <button id="crx-save-post-edit" class="crx-primary-button" type="button">저장하기</button>
         </div>
     `;
         }
@@ -513,6 +513,33 @@ globalThis.CommunityReactionsTemplates = (() => {
             return original ? `<div class="${className}">${escapeHtml(original)}</div>` : '';
         }
 
+        const LANGUAGE_LABELS_BY_OUTPUT = Object.freeze({
+            ko: Object.freeze({
+                ko: '한국어',
+                ja: '일본어',
+                en: '영어',
+                zh: '중국어',
+            }),
+            ja: Object.freeze({
+                ko: '韓国語',
+                ja: '日本語',
+                en: '英語',
+                zh: '中国語',
+            }),
+            en: Object.freeze({
+                ko: 'Korean',
+                ja: 'Japanese',
+                en: 'English',
+                zh: 'Chinese',
+            }),
+            zh: Object.freeze({
+                ko: '韩语',
+                ja: '日语',
+                en: '英语',
+                zh: '中文',
+            }),
+        });
+
         function renderTranslationBar(post, result) {
             if (!result.generation.preserve_original || !post.original || !post.translation) {
                 return '';
@@ -520,14 +547,19 @@ globalThis.CommunityReactionsTemplates = (() => {
 
             return `
         <div class="crx-translation-bar">
-            <span>원문 언어 ${escapeHtml(getLanguageLabel(post.original.language))}</span>
+            <span>원문 언어 ${escapeHtml(getLanguageLabel(post.original.language, result.generation.output_language))}</span>
             <button class="crx-translation-toggle" type="button">원본 보기</button>
         </div>
     `;
         }
 
-        function getLanguageLabel(language) {
-            return LANGUAGE_PRESETS[language] || language || '원문';
+        function getLanguageLabel(language, outputLanguage = '') {
+            const normalizedLanguage = String(language || '');
+            const normalizedOutputLanguage = String(outputLanguage || '');
+            return LANGUAGE_LABELS_BY_OUTPUT[normalizedOutputLanguage]?.[normalizedLanguage]
+                || LANGUAGE_PRESETS[normalizedLanguage]
+                || normalizedLanguage
+                || '원문';
         }
 
         const TWITTER_AVATAR_PALETTE = Object.freeze([
@@ -541,11 +573,12 @@ globalThis.CommunityReactionsTemplates = (() => {
             ['#2dd4bf', '#3b82f6', '#c084fc', 'rgba(255, 255, 255, 0.42)'],
             ['#eab308', '#22c55e', '#0ea5e9', 'rgba(255, 255, 255, 0.4)'],
             ['#f472b6', '#facc15', '#34d399', 'rgba(255, 255, 255, 0.42)'],
+            ['#e9ffb9', '#ffd635', '#ffb180', 'rgb(0 0 0 / 0.42)'],
         ]);
 
         const TWITTER_AVATAR_PATTERNS = Object.freeze(['rings', 'grid', 'stripes', 'dots', 'beam', 'corner']);
         const TWITTER_AVATAR_ANGLES = Object.freeze(['25deg', '70deg', '120deg', '160deg', '210deg', '260deg', '315deg']);
-        const TWITTER_AVATAR_EMOJIS = Object.freeze(['✨', '🔥', '💫', '🌙', '🫧', '🍀', '🧃', '🎧', '🪐', '⚡', '🍒', '🩵', '💜', '😵‍💫', '🤍', '🦋']);
+        const TWITTER_AVATAR_EMOJIS = Object.freeze(['✨', '🔥', '💫', '🌙', '🫧', '🍀', '🧃', '🎧', '🪐', '⚡', '🍒', '🩵', '💜', '😵‍💫', '🤍', '🦋', '😒', '👌', '😘', '💕', '🎶', '🎇', '🎃', '🍆', '🍏', '🥐']);
 
         function hashString(value) {
             const text = String(value || '');
@@ -801,7 +834,7 @@ globalThis.CommunityReactionsTemplates = (() => {
             return `
         <article class="crx-post crx-twitter-post" data-post-key="${escapeHtml(postKey)}">
             ${renderPostCheckbox(postKey)}
-            <div class="crx-twitter-row crx-twitter-main-row">
+            <div class="crx-twitter-row crx-twitter-main-row${post.is_private ? ' private' : ''}">
                 <div class="crx-twitter-avatar-slot ${replies ? 'has-replies' : ''}">
                     <div class="crx-twitter-avatar" style="${escapeHtml(getTwitterAvatarStyle(post.author, post.handle))}" aria-hidden="true"><span class="crx-twitter-avatar-symbol">${getTwitterAvatarContent(post.author, post.handle)}</span></div>
                 </div>
@@ -820,7 +853,7 @@ globalThis.CommunityReactionsTemplates = (() => {
                     ${renderQuotedTweet(post.quoted_post, result, referenceDate)}
                     <div class="crx-twitter-actions">
                         <div title="댓글"><i class="fa-regular fa-comment"></i><span>${formatMetric(commentCount)}</span></div>
-                        <div class="${post.is_private ? 'crx-twitter-private-retweet' : ''}" title="재게시"><i class="fa-solid fa-retweet"></i><span>${formatMetric(post.reposts)}</span></div>
+                        <div title="재게시"><i class="fa-solid fa-retweet"></i><span>${formatMetric(post.reposts)}</span></div>
                         <div title="좋아요"><i class="fa-regular fa-heart"></i><span>${formatMetric(post.likes)}</span></div>
                         <div title="조회"><i class="fa-solid fa-chart-simple"></i><span>${formatMetric(post.views)}</span></div>
                         <div class="flex-0" title="북마크"><i class="fa-regular fa-bookmark"></i></div>
@@ -864,7 +897,7 @@ globalThis.CommunityReactionsTemplates = (() => {
             const { translated, original } = getReplyTextPair(reply, result);
             const createdAtLabel = formatTwitterDate(reply.created_at, referenceDate);
             return `
-        <div class="crx-twitter-row crx-twitter-reply">
+        <div class="crx-twitter-row crx-twitter-reply${reply.is_private ? ' private' : ''}">
             <div class="crx-twitter-reply-avatar-slot ${hasFollowingReply ? 'has-following-reply' : ''}">
                 <div class="crx-twitter-avatar crx-twitter-avatar-small" style="${escapeHtml(getTwitterAvatarStyle(reply.author, reply.handle))}" aria-hidden="true"><span class="crx-twitter-avatar-symbol">${getTwitterAvatarContent(reply.author, reply.handle)}</span></div>
             </div>
@@ -881,7 +914,7 @@ globalThis.CommunityReactionsTemplates = (() => {
                 ${renderOriginalContent(original)}
                 <div class="crx-twitter-reply-actions" aria-hidden="true">
                     <div title="댓글"><i class="fa-regular fa-comment"></i><span>${formatMetric(reply.replies_count || 0)}</span></div>
-                    <div class="${reply.is_private ? 'crx-twitter-private-retweet' : ''}" title="재게시"><i class="fa-solid fa-retweet"></i><span>${formatMetric(reply.reposts || 0)}</span></div>
+                    <div title="재게시"><i class="fa-solid fa-retweet"></i><span>${formatMetric(reply.reposts || 0)}</span></div>
                     <div title="좋아요"><i class="fa-regular fa-heart"></i><span>${formatMetric(reply.likes)}</span></div>
                     <div title="조회"><i class="fa-solid fa-chart-simple"></i><span>${formatMetric(reply.views || 0)}</span></div>
                     <div class="flex-0" title="북마크"><i class="fa-regular fa-bookmark"></i></div>

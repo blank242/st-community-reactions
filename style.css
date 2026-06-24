@@ -19,6 +19,7 @@
     height: 100vh;
     align-items: center;
     justify-content: center;
+    line-height: 1.2;
 }
 
 .crx-modal-backdrop {
@@ -35,7 +36,9 @@
 
 .crx-post-editor-modal .crx-popup {
     max-width: 540px;
-    max-height: calc(100vh - 48px);
+    height: min-content;
+    top: 50%;
+    transform: translateY(-50%);
 }
 
 .crx-post-editor .crx-sheet {
@@ -165,10 +168,9 @@
     margin-bottom: 11px;
 }
 
-.crx-grid-2 {
+.crx-post-editor .crx-section {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
+    gap: 10px;
 }
 
 .crx-options-grid,
@@ -683,7 +685,7 @@
     justify-content: center;
 }
 
-.crx-twitter-private-retweet i {
+.crx-twitter-row.private .crx-twitter-actions div:nth-child(2) {
     color: #c7cfd6;
 }
 
@@ -825,7 +827,6 @@
     border-bottom: 1px solid #eeeeee;
     background: #ffffff;
     cursor: pointer;
-    font-family: "Apple SD Gothic Neo", "Malgun Gothic", "맑은 고딕", sans-serif;
 }
 
 .crx-viewer.is-delete-mode .crx-daum-list-item {
@@ -862,6 +863,7 @@
     margin-top: 5px;
     color: #777d86;
     font-size: 0.7rem;
+    line-height: 1.2;
     white-space: nowrap;
 }
 
@@ -1024,7 +1026,7 @@
 .crx-daum-return-row {
     display: flex;
     justify-content: center;
-    margin-top: 34px;
+    margin: 28px 0;
 }
 
 .crx-daum-return-to-list {
