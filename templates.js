@@ -1,65 +1,65 @@
 globalThis.CommunityReactionsTemplates = (() => {
-'use strict';
+    'use strict';
 
-function create(deps) {
-    const {
-        ADD_OPTION_VALUE,
-        COUNTRY_PRESETS,
-        DEFAULT_MAX_TOKENS,
-        LANGUAGE_PRESETS,
-        MEDIA_TYPES,
-        NPC_SITE_KEYS,
-        REACTION_MODES,
-        READER_SITE_KEYS,
-        SITE_PRESETS,
-        buildProfileOptions,
-        createEmptyIndex,
-        createMaskedReviewerId,
-        escapeHtml,
-        getCommunityOptions,
-        getDefaultRange,
-        getPostKey,
-        getViewLabel,
-        sanitizeId,
-        state,
-    } = deps;
+    function create(deps) {
+        const {
+            ADD_OPTION_VALUE,
+            COUNTRY_PRESETS,
+            DEFAULT_MAX_TOKENS,
+            LANGUAGE_PRESETS,
+            MEDIA_TYPES,
+            NPC_SITE_KEYS,
+            REACTION_MODES,
+            READER_SITE_KEYS,
+            SITE_PRESETS,
+            buildProfileOptions,
+            createEmptyIndex,
+            createMaskedReviewerId,
+            escapeHtml,
+            getCommunityOptions,
+            getDefaultRange,
+            getPostKey,
+            getViewLabel,
+            sanitizeId,
+            state,
+        } = deps;
 
-function renderInfoIcon(label, text) {
-    const key = label.replace(/\s+/g, '-');
-    return `
+        function renderInfoIcon(label, text) {
+            const key = label.replace(/\s+/g, '-');
+            return `
         <button class="crx-info-button" type="button" data-crx-help="${escapeHtml(key)}" aria-expanded="false" title="${escapeHtml(label)} 설명">i</button>
         <span class="crx-help-text" data-crx-help-text="${escapeHtml(key)}">${escapeHtml(text)}</span>
     `;
-}
+        }
 
-function renderOptions(entries, getLabel = value => value) {
-    return entries.map(([value, label]) => `<option value="${escapeHtml(value)}">${escapeHtml(getLabel(label))}</option>`).join('');
-}
+        function renderOptions(entries, getLabel = value => value) {
+            return entries.map(([value, label]) => `<option value="${escapeHtml(value)}">${escapeHtml(getLabel(label))}</option>`).join('');
+        }
 
-function renderSiteOptions(siteKeys, valuePrefix = '') {
-    return siteKeys.map(value => `<option value="${escapeHtml(`${valuePrefix}${value}`)}" data-site="${escapeHtml(value)}">${escapeHtml(SITE_PRESETS[value].label)}</option>`).join('');
-}
+        function renderSiteOptions(siteKeys, valuePrefix = '') {
+            return siteKeys.map(value => `<option value="${escapeHtml(`${valuePrefix}${value}`)}" data-site="${escapeHtml(value)}">${escapeHtml(SITE_PRESETS[value].label)}</option>`).join('');
+        }
 
-function getComposerOptions(context, index) {
-    const siteOptions = renderSiteOptions(READER_SITE_KEYS, 'site:');
-    const savedReaderOptions = (index.reader_communities || []).map(community => `<option value="custom:${escapeHtml(community.id)}" data-id="${escapeHtml(community.id)}" data-site="${escapeHtml(community.site)}">${escapeHtml(community.title)}</option>`).join('');
-    const savedTopicOptions = (index.npc_topics || []).map(topic => `<option value="${escapeHtml(topic.id)}" data-site="${escapeHtml(topic.site)}">${escapeHtml(topic.title)}</option>`).join('');
+        function getComposerOptions(context, index) {
+            const siteOptions = renderSiteOptions(READER_SITE_KEYS, 'site:');
+            const savedReaderOptions = (index.reader_communities || []).map(community => `<option value="custom:${escapeHtml(community.id)}" data-id="${escapeHtml(community.id)}" data-site="${escapeHtml(community.site)}">${escapeHtml(community.title)}</option>`).join('');
+            const savedTopicOptions = (index.npc_topics || []).map(topic => `<option value="${escapeHtml(topic.id)}" data-site="${escapeHtml(topic.site)}" data-preserve-profile="${topic.preserve_profile_identity ? 'true' : 'false'}"${topic.is_default ? ' data-default="true"' : ''}>${escapeHtml(topic.title)}</option>`).join('');
 
-    return {
-        modeOptions: renderOptions(Object.entries(REACTION_MODES)),
-        readerCommunityOptions: `${siteOptions}${savedReaderOptions}<option value="${ADD_OPTION_VALUE}">+ 추가하기</option>`,
-        readerCommunitySiteOptions: renderSiteOptions(READER_SITE_KEYS),
-        topicOptions: `${savedTopicOptions || '<option value="">등록된 카테고리 없음</option>'}<option value="${ADD_OPTION_VALUE}">+ 추가하기</option>`,
-        npcSiteOptions: renderSiteOptions(NPC_SITE_KEYS),
-        countryOptions: renderOptions(Object.entries(COUNTRY_PRESETS), country => country.label),
-        langOptions: renderOptions(Object.entries(LANGUAGE_PRESETS)),
-        mediaOptions: renderOptions(Object.entries(MEDIA_TYPES)),
-        profileOptions: buildProfileOptions(context),
-    };
-}
+            return {
+                modeOptions: renderOptions(Object.entries(REACTION_MODES)),
+                readerCommunityOptions: `${siteOptions}${savedReaderOptions}<option value="${ADD_OPTION_VALUE}">+ 추가하기</option>`,
+                readerCommunitySiteOptions: renderSiteOptions(READER_SITE_KEYS),
+                topicOptions: `${savedTopicOptions || '<option value="">등록된 카테고리 없음</option>'}<option value="${ADD_OPTION_VALUE}">+ 추가하기</option>`,
+                npcSiteOptions: renderSiteOptions(NPC_SITE_KEYS),
+                countryOptions: renderOptions(Object.entries(COUNTRY_PRESETS), country => country.label),
+                langOptions: renderOptions(Object.entries(LANGUAGE_PRESETS)),
+                mediaOptions: renderOptions(Object.entries(MEDIA_TYPES)),
+                profileOptions: buildProfileOptions(context),
+            };
+        }
 
-function renderComposerHeader() {
-    return `
+        function renderComposerHeader() {
+            return `
         <div class="crx-header">
             <div>
                 <div class="crx-eyebrow">Community Reactions</div>
@@ -68,10 +68,10 @@ function renderComposerHeader() {
             <button id="crx-close-composer" class="crx-icon-button" type="button" aria-label="닫기"><i class="fa-solid fa-xmark"></i></button>
         </div>
     `;
-}
+        }
 
-function renderReactionModeSection(modeOptions) {
-    return `
+        function renderReactionModeSection(modeOptions) {
+            return `
         <div class="crx-section">
             <label class="crx-field-wrap">
                 <span class="crx-label crx-label-with-info">
@@ -82,10 +82,10 @@ function renderReactionModeSection(modeOptions) {
             </label>
         </div>
     `;
-}
+        }
 
-function renderCommunityPickerSections(options) {
-    return `
+        function renderCommunityPickerSections(options) {
+            return `
         <div id="crx-topic-section" class="crx-section is-hidden">
             <label id="crx-topic-row" class="crx-field-wrap">
                 <span class="crx-label">NPC 반응 카테고리</span>
@@ -103,10 +103,10 @@ function renderCommunityPickerSections(options) {
             </label>
         </div>
     `;
-}
+        }
 
-function renderCommunityEditForms(options) {
-    return `
+        function renderCommunityEditForms(options) {
+            return `
         <div class="crx-section">
             <div id="crx-reader-community-form" class="crx-topic-form is-hidden">
                 <label class="crx-field-wrap">
@@ -135,6 +135,13 @@ function renderCommunityEditForms(options) {
                     <span class="crx-label">대상 게시판</span>
                     <select id="crx-topic-site" class="crx-field">${options.npcSiteOptions}</select>
                 </label>
+                <label id="crx-preserve-profile-identity-row" class="crx-check-row crx-full-span is-hidden">
+                    <input id="crx-preserve-profile-identity" type="checkbox">
+                    <span class="crx-check-text">
+                        <span>동일인물 계정 유지하기</span>
+                        ${renderInfoIcon('동일인물 계정 유지하기', '같은 사람의 계정일 경우 생성할 때마다 프로필 정보를 동일하게 유지합니다. 해제하면 매번 새로운 랜덤 프로필로 만들어집니다.')}
+                    </span>
+                </label>
                 <label class="crx-field-wrap crx-full-span">
                     <span class="crx-label">카테고리 프롬프트</span>
                     <textarea id="crx-topic-prompt" class="crx-field crx-textarea" placeholder="예: 소설 속 남주인공과 같은 학교 학생들이 익명 게시판에서 사건을 두고 떠드는 반응"></textarea>
@@ -146,10 +153,10 @@ function renderCommunityEditForms(options) {
             </div>
         </div>
     `;
-}
+        }
 
-function renderMessageRangeSection(range) {
-    return `
+        function renderMessageRangeSection(range) {
+            return `
         <div class="crx-section crx-message-range">
             <span class="crx-label">반응을 확인할 메시지는</span>
             <label class="crx-inline-field">
@@ -164,10 +171,10 @@ function renderMessageRangeSection(range) {
             <span id="crx-range-end-preview" class="crx-message-preview"></span>
         </div>
     `;
-}
+        }
 
-function renderGenerationOptionsSection(options) {
-    return `
+        function renderGenerationOptionsSection(options) {
+            return `
         <div class="crx-section crx-options-grid">
             <label class="crx-field-wrap">
                 <span class="crx-label crx-label-with-info">
@@ -194,10 +201,10 @@ function renderGenerationOptionsSection(options) {
             </label>
         </div>
     `;
-}
+        }
 
-function renderPostCountSection() {
-    return `
+        function renderPostCountSection() {
+            return `
         <div class="crx-section">
             <div class="crx-field-wrap crx-range-field">
                 <span class="crx-label">게시글 수</span>
@@ -206,10 +213,10 @@ function renderPostCountSection() {
             </div>
         </div>
     `;
-}
+        }
 
-function renderComposerCheckOptions() {
-    return `
+        function renderComposerCheckOptions() {
+            return `
         <div class="crx-section crx-check-grid">
             <label class="crx-check-row">
                 <input id="crx-include-hidden" type="checkbox">
@@ -239,10 +246,10 @@ function renderComposerCheckOptions() {
             </label>
         </div>
     `;
-}
+        }
 
-function renderCustomPromptSection() {
-    return `
+        function renderCustomPromptSection() {
+            return `
         <div id="crx-custom-prompt-section" class="crx-section">
             <label class="crx-field-wrap">
                 <span class="crx-label">커스텀 프롬프트</span>
@@ -250,22 +257,22 @@ function renderCustomPromptSection() {
             </label>
         </div>
     `;
-}
+        }
 
-function renderComposerFooter() {
-    return `
+        function renderComposerFooter() {
+            return `
         <div class="crx-footer">
             <button id="crx-open-library" class="crx-secondary-button" type="button">커뮤니티 보기</button>
             <button id="crx-generate" class="crx-primary-button" type="button">생성하기</button>
         </div>
     `;
-}
+        }
 
-function buildComposerHtml(context, index = createEmptyIndex('unknown')) {
-    const range = getDefaultRange(context);
-    const options = getComposerOptions(context, index);
+        function buildComposerHtml(context, index = createEmptyIndex('unknown')) {
+            const range = getDefaultRange(context);
+            const options = getComposerOptions(context, index);
 
-    return `
+            return `
         <div class="crx-popup">
             ${renderComposerHeader()}
             <div class="crx-sheet">
@@ -281,15 +288,15 @@ function buildComposerHtml(context, index = createEmptyIndex('unknown')) {
             ${renderComposerFooter()}
         </div>
     `;
-}
+        }
 
-function buildViewerHtml(result, index) {
-    const communityOptions = getCommunityOptions(index).map(option => {
-        return `<option value="${escapeHtml(option.key)}" ${option.key === state.activeViewKey ? 'selected' : ''}>${escapeHtml(option.label)}</option>`;
-    }).join('');
-    const site = getViewLabel(index, state.activeViewKey) || SITE_PRESETS[state.activeCommunity]?.label || state.activeCommunity;
+        function buildViewerHtml(result, index) {
+            const communityOptions = getCommunityOptions(index).map(option => {
+                return `<option value="${escapeHtml(option.key)}" ${option.key === state.activeViewKey ? 'selected' : ''}>${escapeHtml(option.label)}</option>`;
+            }).join('');
+            const site = getViewLabel(index, state.activeViewKey) || SITE_PRESETS[state.activeCommunity]?.label || state.activeCommunity;
 
-    return `
+            return `
         <div class="crx-popup crx-viewer">
             <div class="crx-header">
                 <div class="crx-viewer-heading">
@@ -308,272 +315,276 @@ function buildViewerHtml(result, index) {
             <div id="crx-post-list" class="crx-post-list"></div>
         </div>
     `;
-}
+        }
 
-function getPostText(post, result, original = false) {
-    if (result.generation.preserve_original) {
-        return original ? post.original?.content : post.translation?.content;
-    }
-    return post.content;
-}
+        function getPostText(post, result, original = false) {
+            if (result.generation.preserve_original) {
+                return original ? post.original?.content : post.translation?.content;
+            }
+            return post.content;
+        }
 
-function getReplyText(reply, result, original = false) {
-    if (result.generation.preserve_original) {
-        return original ? reply.original?.content : reply.translation?.content;
-    }
-    return reply.content;
-}
+        function getReplyText(reply, result, original = false) {
+            if (result.generation.preserve_original) {
+                return original ? reply.original?.content : reply.translation?.content;
+            }
+            return reply.content;
+        }
 
-function getPostTextPair(post, result) {
-    return {
-        translated: getPostText(post, result, false),
-        original: getPostText(post, result, true),
-    };
-}
+        function getPostTextPair(post, result) {
+            return {
+                translated: getPostText(post, result, false),
+                original: getPostText(post, result, true),
+            };
+        }
 
-function getReplyTextPair(reply, result) {
-    return {
-        translated: getReplyText(reply, result, false),
-        original: getReplyText(reply, result, true),
-    };
-}
+        function getReplyTextPair(reply, result) {
+            return {
+                translated: getReplyText(reply, result, false),
+                original: getReplyText(reply, result, true),
+            };
+        }
 
-function renderPostCheckbox(postKey) {
-    return `<label class="crx-post-check"><input type="checkbox" value="${escapeHtml(postKey)}" aria-label="게시글 선택"></label>`;
-}
+        function renderPostCheckbox(postKey) {
+            return `<label class="crx-post-check"><input type="checkbox" value="${escapeHtml(postKey)}" aria-label="게시글 선택"></label>`;
+        }
 
-function renderOriginalContent(original, className = 'crx-content crx-original') {
-    return original ? `<div class="${className}">${escapeHtml(original)}</div>` : '';
-}
+        function renderOriginalContent(original, className = 'crx-content crx-original') {
+            return original ? `<div class="${className}">${escapeHtml(original)}</div>` : '';
+        }
 
-function renderTranslationBar(post, result) {
-    if (!result.generation.preserve_original || !post.original || !post.translation) {
-        return '';
-    }
+        function renderTranslationBar(post, result) {
+            if (!result.generation.preserve_original || !post.original || !post.translation) {
+                return '';
+            }
 
-    return `
+            return `
         <div class="crx-translation-bar">
             <span>원문 언어 ${escapeHtml(getLanguageLabel(post.original.language))}</span>
             <button class="crx-translation-toggle" type="button">원본 보기</button>
         </div>
     `;
-}
+        }
 
-function getLanguageLabel(language) {
-    return LANGUAGE_PRESETS[language] || language || '원문';
-}
+        function getLanguageLabel(language) {
+            return LANGUAGE_PRESETS[language] || language || '원문';
+        }
 
-const TWITTER_AVATAR_PALETTE = Object.freeze([
-    ['#ff4d6d', '#f9c74f', '#00bbf9', 'rgba(255, 255, 255, 0.44)'],
-    ['#7c3aed', '#ec4899', '#f97316', 'rgba(255, 255, 255, 0.42)'],
-    ['#06b6d4', '#22c55e', '#fde047', 'rgba(255, 255, 255, 0.4)'],
-    ['#2563eb', '#a855f7', '#fb7185', 'rgba(255, 255, 255, 0.42)'],
-    ['#14b8a6', '#84cc16', '#f59e0b', 'rgba(255, 255, 255, 0.4)'],
-    ['#f43f5e', '#8b5cf6', '#38bdf8', 'rgba(255, 255, 255, 0.42)'],
-    ['#fb923c', '#ef4444', '#a855f7', 'rgba(255, 255, 255, 0.4)'],
-    ['#2dd4bf', '#3b82f6', '#c084fc', 'rgba(255, 255, 255, 0.42)'],
-    ['#eab308', '#22c55e', '#0ea5e9', 'rgba(255, 255, 255, 0.4)'],
-    ['#f472b6', '#facc15', '#34d399', 'rgba(255, 255, 255, 0.42)'],
-]);
+        const TWITTER_AVATAR_PALETTE = Object.freeze([
+            ['#ff4d6d', '#f9c74f', '#00bbf9', 'rgba(255, 255, 255, 0.44)'],
+            ['#7c3aed', '#ec4899', '#f97316', 'rgba(255, 255, 255, 0.42)'],
+            ['#06b6d4', '#22c55e', '#fde047', 'rgba(255, 255, 255, 0.4)'],
+            ['#2563eb', '#a855f7', '#fb7185', 'rgba(255, 255, 255, 0.42)'],
+            ['#14b8a6', '#84cc16', '#f59e0b', 'rgba(255, 255, 255, 0.4)'],
+            ['#f43f5e', '#8b5cf6', '#38bdf8', 'rgba(255, 255, 255, 0.42)'],
+            ['#fb923c', '#ef4444', '#a855f7', 'rgba(255, 255, 255, 0.4)'],
+            ['#2dd4bf', '#3b82f6', '#c084fc', 'rgba(255, 255, 255, 0.42)'],
+            ['#eab308', '#22c55e', '#0ea5e9', 'rgba(255, 255, 255, 0.4)'],
+            ['#f472b6', '#facc15', '#34d399', 'rgba(255, 255, 255, 0.42)'],
+        ]);
 
-const TWITTER_AVATAR_PATTERNS = Object.freeze(['rings', 'grid', 'stripes', 'dots', 'beam', 'corner']);
-const TWITTER_AVATAR_ANGLES = Object.freeze(['25deg', '70deg', '120deg', '160deg', '210deg', '260deg', '315deg']);
-const TWITTER_AVATAR_EMOJIS = Object.freeze(['✨', '🔥', '💫', '🌙', '🫧', '🍀', '🧃', '🎧', '🪐', '⚡', '🍒', '🩵', '💜', '😵‍💫', '🤍', '🦋']);
+        const TWITTER_AVATAR_PATTERNS = Object.freeze(['rings', 'grid', 'stripes', 'dots', 'beam', 'corner']);
+        const TWITTER_AVATAR_ANGLES = Object.freeze(['25deg', '70deg', '120deg', '160deg', '210deg', '260deg', '315deg']);
+        const TWITTER_AVATAR_EMOJIS = Object.freeze(['✨', '🔥', '💫', '🌙', '🫧', '🍀', '🧃', '🎧', '🪐', '⚡', '🍒', '🩵', '💜', '😵‍💫', '🤍', '🦋']);
 
-function hashString(value) {
-    const text = String(value || '');
-    let hash = 2166136261;
-    for (let index = 0; index < text.length; index += 1) {
-        hash ^= text.charCodeAt(index);
-        hash = Math.imul(hash, 16777619);
-    }
-    return hash >>> 0;
-}
+        function hashString(value) {
+            const text = String(value || '');
+            let hash = 2166136261;
+            for (let index = 0; index < text.length; index += 1) {
+                hash ^= text.charCodeAt(index);
+                hash = Math.imul(hash, 16777619);
+            }
+            return hash >>> 0;
+        }
 
-function getTwitterAvatarStyle(author, handle = '') {
-    const key = `${author || ''}|${handle || ''}`.trim() || 'anonymous';
-    const hash = hashString(key);
-    const [start, mid, end, accent] = TWITTER_AVATAR_PALETTE[hash % TWITTER_AVATAR_PALETTE.length];
-    const pattern = TWITTER_AVATAR_PATTERNS[Math.floor(hash / TWITTER_AVATAR_PALETTE.length) % TWITTER_AVATAR_PATTERNS.length];
-    const angle = TWITTER_AVATAR_ANGLES[Math.floor(hash / 17) % TWITTER_AVATAR_ANGLES.length];
-    return `--crx-avatar-angle: ${angle}; --crx-avatar-start: ${start}; --crx-avatar-mid: ${mid}; --crx-avatar-end: ${end}; --crx-avatar-accent: ${accent}; --crx-avatar-pattern: ${pattern};`;
-}
+        function getTwitterAvatarStyle(author, handle = '') {
+            const key = `${author || ''}|${handle || ''}`.trim() || 'anonymous';
+            const hash = hashString(key);
+            const [start, mid, end, accent] = TWITTER_AVATAR_PALETTE[hash % TWITTER_AVATAR_PALETTE.length];
+            const pattern = TWITTER_AVATAR_PATTERNS[Math.floor(hash / TWITTER_AVATAR_PALETTE.length) % TWITTER_AVATAR_PATTERNS.length];
+            const angle = TWITTER_AVATAR_ANGLES[Math.floor(hash / 17) % TWITTER_AVATAR_ANGLES.length];
+            return `--crx-avatar-angle: ${angle}; --crx-avatar-start: ${start}; --crx-avatar-mid: ${mid}; --crx-avatar-end: ${end}; --crx-avatar-accent: ${accent}; --crx-avatar-pattern: ${pattern};`;
+        }
 
-function getTwitterAvatarContent(author, handle = '') {
-    const key = `${author || ''}|${handle || ''}`.trim() || 'anonymous';
-    const hash = hashString(key);
-    if (hash % 2 === 0) {
-        return '';
-    }
-    return escapeHtml(TWITTER_AVATAR_EMOJIS[Math.floor(hash / 3) % TWITTER_AVATAR_EMOJIS.length]);
-}
+        function getTwitterAvatarContent(author, handle = '') {
+            const key = `${author || ''}|${handle || ''}`.trim() || 'anonymous';
+            const hash = hashString(key);
+            if (hash % 2 === 0) {
+                return '';
+            }
+            return escapeHtml(TWITTER_AVATAR_EMOJIS[Math.floor(hash / 3) % TWITTER_AVATAR_EMOJIS.length]);
+        }
 
-function formatMetric(value) {
-    const number = Number(value || 0);
-    if (!Number.isFinite(number) || number <= 0) {
-        return '';
-    }
-    if (number >= 10000) {
-        return `${Math.round(number / 1000) / 10}만`;
-    }
-    if (number >= 1000) {
-        return `${Math.round(number / 100) / 10}천`;
-    }
-    return String(number);
-}
+        function renderTwitterPrivateLock(isPrivate) {
+            return isPrivate ? '<i class="fa-solid fa-lock crx-twitter-lock" aria-label="비공개 계정"></i>' : '';
+        }
 
-function getDaumTitle(post) {
-    return post.title;
-}
+        function formatMetric(value) {
+            const number = Number(value || 0);
+            if (!Number.isFinite(number) || number <= 0) {
+                return '';
+            }
+            if (number >= 10000) {
+                return `${Math.round(number / 1000) / 10}만`;
+            }
+            if (number >= 1000) {
+                return `${Math.round(number / 100) / 10}천`;
+            }
+            return String(number);
+        }
 
-function getDaumCategory(post) {
-    return post.category;
-}
+        function getDaumTitle(post) {
+            return post.title;
+        }
 
-function formatDaumNumber(value) {
-    const number = Number(value || 0);
-    if (!Number.isFinite(number) || number <= 0) {
-        return '0';
-    }
-    return number.toLocaleString('ko-KR');
-}
+        function getDaumCategory(post) {
+            return post.category;
+        }
 
-function getPostReplyCount(post) {
-    const explicit = Number(post?.replies_count);
-    if (Number.isFinite(explicit)) {
-        return Math.max(0, explicit);
-    }
-    return Array.isArray(post?.replies) ? post.replies.length : 0;
-}
+        function formatDaumNumber(value) {
+            const number = Number(value || 0);
+            if (!Number.isFinite(number) || number <= 0) {
+                return '0';
+            }
+            return number.toLocaleString('ko-KR');
+        }
 
-function getDateOrNull(value) {
-    const date = new Date(value || '');
-    return Number.isNaN(date.getTime()) ? null : date;
-}
+        function getPostReplyCount(post) {
+            const explicit = Number(post?.replies_count);
+            if (Number.isFinite(explicit)) {
+                return Math.max(0, explicit);
+            }
+            return Array.isArray(post?.replies) ? post.replies.length : 0;
+        }
 
-function isSameLocalDay(a, b) {
-    return a.getFullYear() === b.getFullYear()
+        function getDateOrNull(value) {
+            const date = new Date(value || '');
+            return Number.isNaN(date.getTime()) ? null : date;
+        }
+
+        function isSameLocalDay(a, b) {
+            return a.getFullYear() === b.getFullYear()
         && a.getMonth() === b.getMonth()
         && a.getDate() === b.getDate();
-}
+        }
 
-function pad2(value) {
-    return String(value).padStart(2, '0');
-}
+        function pad2(value) {
+            return String(value).padStart(2, '0');
+        }
 
-function getResultDateValues(result) {
-    const posts = Array.isArray(result?.posts) ? result.posts : [];
-    return posts.map(post => post?.created_at);
-}
+        function getResultDateValues(result) {
+            const posts = Array.isArray(result?.posts) ? result.posts : [];
+            return posts.map(post => post?.created_at);
+        }
 
-function getResultReferenceDate(result) {
-    if (result?.generation?.reaction_mode !== 'npc') {
-        return new Date();
-    }
+        function getResultReferenceDate(result) {
+            if (result?.generation?.reaction_mode !== 'npc') {
+                return new Date();
+            }
 
-    const newestTime = getResultDateValues(result)
-        .map(value => getDateOrNull(value)?.getTime())
-        .filter(Number.isFinite)
-        .reduce((newest, time) => Math.max(newest, time), -Infinity);
+            const newestTime = getResultDateValues(result)
+                .map(value => getDateOrNull(value)?.getTime())
+                .filter(Number.isFinite)
+                .reduce((newest, time) => Math.max(newest, time), -Infinity);
 
-    return Number.isFinite(newestTime) ? new Date(newestTime) : new Date();
-}
+            return Number.isFinite(newestTime) ? new Date(newestTime) : new Date();
+        }
 
-function formatTwitterDate(value, referenceDate = new Date()) {
-    const date = getDateOrNull(value);
-    if (!date) {
-        return '방금 전';
-    }
+        function formatTwitterDate(value, referenceDate = new Date()) {
+            const date = getDateOrNull(value);
+            if (!date) {
+                return '방금 전';
+            }
 
-    const now = referenceDate instanceof Date && !Number.isNaN(referenceDate.getTime()) ? referenceDate : new Date();
-    const diffMs = Math.max(0, now.getTime() - date.getTime());
-    const minutes = Math.floor(diffMs / 60000);
-    if (minutes < 60) {
-        return `${Math.max(1, minutes)}분 전`;
-    }
+            const now = referenceDate instanceof Date && !Number.isNaN(referenceDate.getTime()) ? referenceDate : new Date();
+            const diffMs = Math.max(0, now.getTime() - date.getTime());
+            const minutes = Math.floor(diffMs / 60000);
+            if (minutes < 60) {
+                return `${Math.max(1, minutes)}분 전`;
+            }
 
-    const hours = Math.floor(diffMs / 3600000);
-    if (hours < 24) {
-        return `${hours}시간 전`;
-    }
+            const hours = Math.floor(diffMs / 3600000);
+            if (hours < 24) {
+                return `${hours}시간 전`;
+            }
 
-    const days = Math.floor(diffMs / 86400000);
-    if (days < 7) {
-        return `${Math.max(1, days)}일 전`;
-    }
+            const days = Math.floor(diffMs / 86400000);
+            if (days < 7) {
+                return `${Math.max(1, days)}일 전`;
+            }
 
-    if (date.getFullYear() === now.getFullYear()) {
-        return `${date.getMonth() + 1}월 ${date.getDate()}일`;
-    }
+            if (date.getFullYear() === now.getFullYear()) {
+                return `${date.getMonth() + 1}월 ${date.getDate()}일`;
+            }
 
-    return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`;
-}
+            return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`;
+        }
 
-function formatDaumDate(value, referenceDate = new Date()) {
-    const date = getDateOrNull(value);
-    if (!date) {
-        return '방금';
-    }
+        function formatDaumDate(value, referenceDate = new Date()) {
+            const date = getDateOrNull(value);
+            if (!date) {
+                return '방금';
+            }
 
-    const now = referenceDate instanceof Date && !Number.isNaN(referenceDate.getTime()) ? referenceDate : new Date();
-    if (isSameLocalDay(date, now)) {
-        return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
-    }
+            const now = referenceDate instanceof Date && !Number.isNaN(referenceDate.getTime()) ? referenceDate : new Date();
+            if (isSameLocalDay(date, now)) {
+                return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+            }
 
-    return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`;
-}
+            return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`;
+        }
 
-function formatDaumDetailDate(value, referenceDate = new Date()) {
-    const date = getDateOrNull(value);
-    if (!date) {
-        return '방금';
-    }
+        function formatDaumDetailDate(value, referenceDate = new Date()) {
+            const date = getDateOrNull(value);
+            if (!date) {
+                return '방금';
+            }
 
-    const now = referenceDate instanceof Date && !Number.isNaN(referenceDate.getTime()) ? referenceDate : new Date();
-    if (isSameLocalDay(date, now)) {
-        return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
-    }
+            const now = referenceDate instanceof Date && !Number.isNaN(referenceDate.getTime()) ? referenceDate : new Date();
+            if (isSameLocalDay(date, now)) {
+                return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+            }
 
-    return `${date.getFullYear()}년 ${pad2(date.getMonth() + 1)}월 ${pad2(date.getDate())}일 ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
-}
+            return `${date.getFullYear()}년 ${pad2(date.getMonth() + 1)}월 ${pad2(date.getDate())}일 ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+        }
 
-function formatEverytimeDetailDate(value) {
-    const date = getDateOrNull(value);
-    if (!date) {
-        return '방금';
-    }
-    return `${pad2(date.getMonth() + 1)}/${pad2(date.getDate())} ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
-}
+        function formatEverytimeDetailDate(value) {
+            const date = getDateOrNull(value);
+            if (!date) {
+                return '방금';
+            }
+            return `${pad2(date.getMonth() + 1)}/${pad2(date.getDate())} ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+        }
 
-function formatReviewDate(value) {
-    const date = getDateOrNull(value);
-    if (!date) {
-        return '오늘';
-    }
-    return `${date.getFullYear()}.${pad2(date.getMonth() + 1)}.${pad2(date.getDate())}`;
-}
+        function formatReviewDate(value) {
+            const date = getDateOrNull(value);
+            if (!date) {
+                return '오늘';
+            }
+            return `${date.getFullYear()}.${pad2(date.getMonth() + 1)}.${pad2(date.getDate())}`;
+        }
 
-function formatReviewReplyDate(value) {
-    const date = getDateOrNull(value);
-    if (!date) {
-        return '오늘';
-    }
-    return `${formatReviewDate(value)} ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
-}
+        function formatReviewReplyDate(value) {
+            const date = getDateOrNull(value);
+            if (!date) {
+                return '오늘';
+            }
+            return `${formatReviewDate(value)} ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+        }
 
-function renderStarRating(value) {
-    const rating = Math.max(1, Math.min(5, Math.round(Number(value || 5))));
-    return Array.from({ length: 5 }, (_, index) => `<span class="${index < rating ? 'is-filled' : ''}">★</span>`).join('');
-}
+        function renderStarRating(value) {
+            const rating = Math.max(1, Math.min(5, Math.round(Number(value || 5))));
+            return Array.from({ length: 5 }, (_, index) => `<span class="${index < rating ? 'is-filled' : ''}">★</span>`).join('');
+        }
 
-function renderWebNovelReviewPost(post, result, postKey = getPostKey(result.id, post.id)) {
-    const { translated, original } = getPostTextPair(post, result);
-    const replies = post.replies.map(reply => renderWebNovelReviewReply(reply, result)).join('');
-    const commentCount = getPostReplyCount(post);
-    const reviewerId = post.reviewer_id || createMaskedReviewerId(post.id);
-    const repliesId = `crx-webnovel-replies-${sanitizeId(postKey)}`;
+        function renderWebNovelReviewPost(post, result, postKey = getPostKey(result.id, post.id)) {
+            const { translated, original } = getPostTextPair(post, result);
+            const replies = post.replies.map(reply => renderWebNovelReviewReply(reply, result)).join('');
+            const commentCount = getPostReplyCount(post);
+            const reviewerId = post.reviewer_id || createMaskedReviewerId(post.id);
+            const repliesId = `crx-webnovel-replies-${sanitizeId(postKey)}`;
 
-    return `
+            return `
         <article class="crx-post crx-webnovel-review" data-post-key="${escapeHtml(postKey)}">
             ${renderPostCheckbox(postKey)}
             <div class="crx-webnovel-stars" aria-label="별점 ${escapeHtml(post.rating)}점">${renderStarRating(post.rating)}</div>
@@ -596,13 +607,13 @@ function renderWebNovelReviewPost(post, result, postKey = getPostKey(result.id, 
             </div>
         </article>
     `;
-}
+        }
 
-function renderWebNovelReviewReply(reply, result) {
-    const { translated, original } = getReplyTextPair(reply, result);
-    const reviewerId = reply.reviewer_id || createMaskedReviewerId(reply.id);
-    const createdAt = formatReviewReplyDate(reply.created_at);
-    return `
+        function renderWebNovelReviewReply(reply, result) {
+            const { translated, original } = getReplyTextPair(reply, result);
+            const reviewerId = reply.reviewer_id || createMaskedReviewerId(reply.id);
+            const createdAt = formatReviewReplyDate(reply.created_at);
+            return `
         <div class="crx-webnovel-reply">
             <div class="crx-webnovel-reply-line">
                 <span class="crx-webnovel-reply-mark">ㄴ</span>
@@ -618,16 +629,16 @@ function renderWebNovelReviewReply(reply, result) {
             </div>
         </div>
     `;
-}
+        }
 
-function renderTwitterPost(post, result, postKey = getPostKey(result.id, post.id)) {
-    const { translated, original } = getPostTextPair(post, result);
-    const referenceDate = getResultReferenceDate(result);
-    const replies = post.replies.map((reply, index) => renderTwitterReply(reply, result, index < post.replies.length - 1, referenceDate)).join('');
-    const createdAtLabel = formatTwitterDate(post.created_at, referenceDate);
-    const commentCount = getPostReplyCount(post);
+        function renderTwitterPost(post, result, postKey = getPostKey(result.id, post.id)) {
+            const { translated, original } = getPostTextPair(post, result);
+            const referenceDate = getResultReferenceDate(result);
+            const replies = post.replies.map((reply, index) => renderTwitterReply(reply, result, index < post.replies.length - 1, referenceDate)).join('');
+            const createdAtLabel = formatTwitterDate(post.created_at, referenceDate);
+            const commentCount = getPostReplyCount(post);
 
-    return `
+            return `
         <article class="crx-post crx-twitter-post" data-post-key="${escapeHtml(postKey)}">
             ${renderPostCheckbox(postKey)}
             <div class="crx-twitter-row crx-twitter-main-row">
@@ -637,6 +648,7 @@ function renderTwitterPost(post, result, postKey = getPostKey(result.id, post.id
                 <div class="crx-twitter-body">
                     <div class="crx-twitter-head">
                         <span class="crx-twitter-author">${escapeHtml(post.author)}</span>
+                        ${renderTwitterPrivateLock(post.is_private)}
                         ${post.handle ? `<span class="crx-twitter-handle">${escapeHtml(post.handle)}</span>` : ''}
                         <span class="crx-dot">·</span>
                         <span class="crx-twitter-time">${escapeHtml(createdAtLabel)}</span>
@@ -647,36 +659,37 @@ function renderTwitterPost(post, result, postKey = getPostKey(result.id, post.id
                     ${renderOriginalContent(original)}
                     ${renderQuotedTweet(post.quoted_post, result, referenceDate)}
                     <div class="crx-twitter-actions">
-                        <span title="댓글"><i class="fa-regular fa-comment"></i>${formatMetric(commentCount)}</span>
-                        <span title="재게시"><i class="fa-solid fa-retweet"></i>${formatMetric(post.reposts)}</span>
-                        <span title="좋아요"><i class="fa-regular fa-heart"></i>${formatMetric(post.likes)}</span>
-                        <span title="조회"><i class="fa-solid fa-chart-simple"></i>${formatMetric(post.views)}</span>
-                        <span class="flex-0" title="북마크"><i class="fa-regular fa-bookmark"></i></span>
-                        <span class="flex-0" title="공유"><i class="fa-solid fa-arrow-up-from-bracket"></i></span>
+                        <div title="댓글"><i class="fa-regular fa-comment"></i><span>${formatMetric(commentCount)}</span></div>
+                        <div class="${post.is_private ? 'crx-twitter-private-retweet' : ''}" title="재게시"><i class="fa-solid fa-retweet"></i><span>${formatMetric(post.reposts)}</span></div>
+                        <div title="좋아요"><i class="fa-regular fa-heart"></i><span>${formatMetric(post.likes)}</span></div>
+                        <div title="조회"><i class="fa-solid fa-chart-simple"></i><span>${formatMetric(post.views)}</span></div>
+                        <div class="flex-0" title="북마크"><i class="fa-regular fa-bookmark"></i></div>
+                        <div class="flex-0" title="공유"><i class="fa-solid fa-arrow-up-from-bracket"></i></div>
                     </div>
                 </div>
             </div>
             ${replies ? `<div class="crx-twitter-replies">${replies}</div>` : ''}
         </article>
     `;
-}
+        }
 
-function renderQuotedTweet(quotedPost, result, referenceDate = getResultReferenceDate(result)) {
-    if (!quotedPost) {
-        return '';
-    }
+        function renderQuotedTweet(quotedPost, result, referenceDate = getResultReferenceDate(result)) {
+            if (!quotedPost) {
+                return '';
+            }
 
-    const { translated, original } = getPostTextPair(quotedPost, result);
-    if (!translated && !original) {
-        return '';
-    }
+            const { translated, original } = getPostTextPair(quotedPost, result);
+            if (!translated && !original) {
+                return '';
+            }
 
-    return `
+            return `
         <div class="crx-twitter-quote">
             <div class="crx-twitter-quote-header">
                 <div class="crx-twitter-avatar crx-twitter-quote-avatar" style="${escapeHtml(getTwitterAvatarStyle(quotedPost.author, quotedPost.handle))}" aria-hidden="true"><span class="crx-twitter-avatar-symbol">${getTwitterAvatarContent(quotedPost.author, quotedPost.handle)}</span></div>
                 <div class="crx-twitter-quote-meta">
                     <span class="crx-twitter-quote-author">${escapeHtml(quotedPost.author || '익명')}</span>
+                    ${renderTwitterPrivateLock(quotedPost.is_private)}
                     ${quotedPost.handle ? `<span class="crx-twitter-quote-handle">${escapeHtml(quotedPost.handle)}</span>` : ''}
                     ${quotedPost.created_at ? `<span class="crx-twitter-quote-dot">·</span><span class="crx-twitter-quote-time">${escapeHtml(formatTwitterDate(quotedPost.created_at, referenceDate))}</span>` : ''}
                 </div>
@@ -685,12 +698,12 @@ function renderQuotedTweet(quotedPost, result, referenceDate = getResultReferenc
             ${renderOriginalContent(original, 'crx-twitter-quote-content crx-twitter-quote-original crx-original')}
         </div>
     `;
-}
+        }
 
-function renderTwitterReply(reply, result, hasFollowingReply = false, referenceDate = getResultReferenceDate(result)) {
-    const { translated, original } = getReplyTextPair(reply, result);
-    const createdAtLabel = formatTwitterDate(reply.created_at, referenceDate);
-    return `
+        function renderTwitterReply(reply, result, hasFollowingReply = false, referenceDate = getResultReferenceDate(result)) {
+            const { translated, original } = getReplyTextPair(reply, result);
+            const createdAtLabel = formatTwitterDate(reply.created_at, referenceDate);
+            return `
         <div class="crx-twitter-row crx-twitter-reply">
             <div class="crx-twitter-reply-avatar-slot ${hasFollowingReply ? 'has-following-reply' : ''}">
                 <div class="crx-twitter-avatar crx-twitter-avatar-small" style="${escapeHtml(getTwitterAvatarStyle(reply.author, reply.handle))}" aria-hidden="true"><span class="crx-twitter-avatar-symbol">${getTwitterAvatarContent(reply.author, reply.handle)}</span></div>
@@ -698,6 +711,7 @@ function renderTwitterReply(reply, result, hasFollowingReply = false, referenceD
             <div class="crx-twitter-reply-body">
                 <div class="crx-twitter-head">
                     <span class="crx-twitter-author">${escapeHtml(reply.author)}</span>
+                    ${renderTwitterPrivateLock(reply.is_private)}
                     ${reply.handle ? `<span class="crx-twitter-handle">${escapeHtml(reply.handle)}</span>` : ''}
                     <span class="crx-dot">·</span>
                     <span class="crx-twitter-time">${escapeHtml(createdAtLabel)}</span>
@@ -706,24 +720,24 @@ function renderTwitterReply(reply, result, hasFollowingReply = false, referenceD
                 <div class="crx-content crx-translated">${escapeHtml(translated)}</div>
                 ${renderOriginalContent(original)}
                 <div class="crx-twitter-reply-actions" aria-hidden="true">
-                    <span><i class="fa-regular fa-comment"></i>${formatMetric(reply.replies_count || 0)}</span>
-                    <span><i class="fa-solid fa-retweet"></i>${formatMetric(reply.reposts || 0)}</span>
-                    <span><i class="fa-regular fa-heart"></i>${formatMetric(reply.likes)}</span>
-                    <span><i class="fa-solid fa-chart-simple"></i>${formatMetric(reply.views || 0)}</span>
-                    <span class="flex-0"><i class="fa-regular fa-bookmark"></i></span>
-                    <span class="flex-0"><i class="fa-solid fa-arrow-up-from-bracket"></i></span>
+                    <div title="댓글"><i class="fa-regular fa-comment"></i><span>${formatMetric(reply.replies_count || 0)}</span></div>
+                    <div class="${reply.is_private ? 'crx-twitter-private-retweet' : ''}" title="재게시"><i class="fa-solid fa-retweet"></i><span>${formatMetric(reply.reposts || 0)}</span></div>
+                    <div title="좋아요"><i class="fa-regular fa-heart"></i><span>${formatMetric(reply.likes)}</span></div>
+                    <div title="조회"><i class="fa-solid fa-chart-simple"></i><span>${formatMetric(reply.views || 0)}</span></div>
+                    <div class="flex-0" title="북마크"><i class="fa-regular fa-bookmark"></i></div>
+                    <div class="flex-0" title="공유"><i class="fa-solid fa-arrow-up-from-bracket"></i></div>
                 </div>
             </div>
         </div>
     `;
-}
+        }
 
-function renderDaumListItem(post, postKey, isLatestResult = false, result = null, referenceDate = null) {
-    const commentCount = getPostReplyCount(post);
-    const author = getDaumAuthor(post.author);
-    const createdAtLabel = formatDaumDate(post.created_at, referenceDate || getResultReferenceDate(result));
+        function renderDaumListItem(post, postKey, isLatestResult = false, result = null, referenceDate = null) {
+            const commentCount = getPostReplyCount(post);
+            const author = getDaumAuthor(post.author);
+            const createdAtLabel = formatDaumDate(post.created_at, referenceDate || getResultReferenceDate(result));
 
-    return `
+            return `
         <article class="crx-post crx-daum-list-item" data-post-key="${escapeHtml(postKey)}" role="button" tabindex="0">
             ${renderPostCheckbox(postKey)}
             <div class="crx-daum-list-main">
@@ -741,16 +755,16 @@ function renderDaumListItem(post, postKey, isLatestResult = false, result = null
             </div>
         </article>
     `;
-}
+        }
 
-function renderDaumPost(post, result, postKey = getPostKey(result.id, post.id), referenceDate = getResultReferenceDate(result)) {
-    const { translated, original } = getPostTextPair(post, result);
-    const replies = post.replies.map(reply => renderDaumReply(reply, result, referenceDate)).join('');
-    const commentCount = getPostReplyCount(post);
-    const author = getDaumAuthor(post.author);
-    const createdAtLabel = formatDaumDetailDate(post.created_at, referenceDate);
+        function renderDaumPost(post, result, postKey = getPostKey(result.id, post.id), referenceDate = getResultReferenceDate(result)) {
+            const { translated, original } = getPostTextPair(post, result);
+            const replies = post.replies.map(reply => renderDaumReply(reply, result, referenceDate)).join('');
+            const commentCount = getPostReplyCount(post);
+            const author = getDaumAuthor(post.author);
+            const createdAtLabel = formatDaumDetailDate(post.created_at, referenceDate);
 
-    return `
+            return `
         <article class="crx-post crx-daum-post" data-post-key="${escapeHtml(postKey)}">
             <div class="crx-daum-card">
                 <div class="crx-daum-appbar">
@@ -794,13 +808,13 @@ function renderDaumPost(post, result, postKey = getPostKey(result.id, post.id), 
             </div>
         </article>
     `;
-}
+        }
 
-function renderDaumReply(reply, result, referenceDate = getResultReferenceDate(result)) {
-    const { translated, original } = getReplyTextPair(reply, result);
-    const author = getDaumAuthor(reply.author);
-    const createdAtLabel = formatDaumDetailDate(reply.created_at, referenceDate);
-    return `
+        function renderDaumReply(reply, result, referenceDate = getResultReferenceDate(result)) {
+            const { translated, original } = getReplyTextPair(reply, result);
+            const author = getDaumAuthor(reply.author);
+            const createdAtLabel = formatDaumDetailDate(reply.created_at, referenceDate);
+            return `
         <div class="crx-daum-reply ${reply.is_reply ? 'is-reply' : ''}">
             ${reply.is_reply ? '<span class="crx-daum-reply-mark">ㄴ</span>' : ''}
             <div class="crx-daum-reply-head">
@@ -814,22 +828,22 @@ function renderDaumReply(reply, result, referenceDate = getResultReferenceDate(r
             ${renderOriginalContent(original)}
         </div>
     `;
-}
+        }
 
-function getEverytimeAnonymousName(value, fallback = 1) {
-    const text = String(value || '').trim();
-    if (/^익명(?:\d+)?$/.test(text) || text === '익명 (글쓴이)') {
-        return text;
-    }
-    return fallback <= 1 ? '익명' : `익명${fallback}`;
-}
+        function getEverytimeAnonymousName(value, fallback = 1) {
+            const text = String(value || '').trim();
+            if (/^익명(?:\d+)?$/.test(text) || text === '익명 (글쓴이)') {
+                return text;
+            }
+            return fallback <= 1 ? '익명' : `익명${fallback}`;
+        }
 
-function renderEverytimeListItem(post, result, postKey, referenceDate = getResultReferenceDate(result)) {
-    const commentCount = getPostReplyCount(post);
-    const translated = getPostText(post, result, false) || post.content || '';
-    const createdAtLabel = formatTwitterDate(post.created_at, referenceDate);
+        function renderEverytimeListItem(post, result, postKey, referenceDate = getResultReferenceDate(result)) {
+            const commentCount = getPostReplyCount(post);
+            const translated = getPostText(post, result, false) || post.content || '';
+            const createdAtLabel = formatTwitterDate(post.created_at, referenceDate);
 
-    return `
+            return `
         <article class="crx-post crx-daum-list-item crx-everytime-list-item" data-post-key="${escapeHtml(postKey)}" role="button" tabindex="0">
             ${renderPostCheckbox(postKey)}
             <div class="crx-everytime-board-chip">${escapeHtml(getDaumCategory(post) || '자유게시판')}</div>
@@ -845,15 +859,15 @@ function renderEverytimeListItem(post, result, postKey, referenceDate = getResul
             </div>
         </article>
     `;
-}
+        }
 
-function renderEverytimePost(post, result, postKey = getPostKey(result.id, post.id), referenceDate = getResultReferenceDate(result)) {
-    const { translated, original } = getPostTextPair(post, result);
-    const replies = post.replies.map((reply, index) => renderEverytimeReply(reply, result, index + 1, referenceDate)).join('');
-    const commentCount = getPostReplyCount(post);
-    const createdAtLabel = formatEverytimeDetailDate(post.created_at);
+        function renderEverytimePost(post, result, postKey = getPostKey(result.id, post.id), referenceDate = getResultReferenceDate(result)) {
+            const { translated, original } = getPostTextPair(post, result);
+            const replies = post.replies.map((reply, index) => renderEverytimeReply(reply, result, index + 1, referenceDate)).join('');
+            const commentCount = getPostReplyCount(post);
+            const createdAtLabel = formatEverytimeDetailDate(post.created_at);
 
-    return `
+            return `
         <article class="crx-post crx-everytime-post" data-post-key="${escapeHtml(postKey)}">
             <div class="crx-everytime-card">
                 <div class="crx-everytime-appbar">
@@ -898,14 +912,14 @@ function renderEverytimePost(post, result, postKey = getPostKey(result.id, post.
             </div>
         </article>
     `;
-}
+        }
 
-function renderEverytimeReply(reply, result, index, referenceDate = getResultReferenceDate(result)) {
-    const { translated, original } = getReplyTextPair(reply, result);
-    const author = reply.is_reply ? getEverytimeAnonymousName(reply.author, index) : getEverytimeAnonymousName(reply.author, index);
-    const createdAtLabel = formatEverytimeDetailDate(reply.created_at);
+        function renderEverytimeReply(reply, result, index, referenceDate = getResultReferenceDate(result)) {
+            const { translated, original } = getReplyTextPair(reply, result);
+            const author = reply.is_reply ? getEverytimeAnonymousName(reply.author, index) : getEverytimeAnonymousName(reply.author, index);
+            const createdAtLabel = formatEverytimeDetailDate(reply.created_at);
 
-    return `
+            return `
         <div class="crx-everytime-reply ${reply.is_reply ? 'is-reply' : ''}">
             ${reply.is_reply ? '<span class="crx-everytime-reply-mark">ㄴ</span>' : ''}
             <span class="crx-everytime-avatar crx-everytime-reply-avatar" aria-hidden="true"></span>
@@ -920,23 +934,23 @@ function renderEverytimeReply(reply, result, index, referenceDate = getResultRef
             </div>
         </div>
     `;
-}
+        }
 
-function getDaumAuthor() {
-    return '익명';
-}
+        function getDaumAuthor() {
+            return '익명';
+        }
 
-    return {
-        buildComposerHtml,
-        buildViewerHtml,
-        renderDaumListItem,
-        renderDaumPost,
-        renderEverytimeListItem,
-        renderEverytimePost,
-        renderTwitterPost,
-        renderWebNovelReviewPost,
-    };
-}
+        return {
+            buildComposerHtml,
+            buildViewerHtml,
+            renderDaumListItem,
+            renderDaumPost,
+            renderEverytimeListItem,
+            renderEverytimePost,
+            renderTwitterPost,
+            renderWebNovelReviewPost,
+        };
+    }
 
-return { create };
+    return { create };
 })();

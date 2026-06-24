@@ -73,6 +73,7 @@
     padding: 12px 14px;
     flex: 0 0 auto;
     box-shadow: 0 0 12px rgb(13 22 43 / 10%);
+    z-index: 1;
 }
 
 .crx-eyebrow {
@@ -114,6 +115,10 @@
 .crx-primary-button {
     border: 0;
     cursor: pointer;
+}
+.crx-tool-button,
+.crx-secondary-button,
+.crx-primary-button {
     font: inherit;
 }
 
@@ -146,7 +151,7 @@
 .crx-check-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
+    gap: 4px 8px;
 }
 
 .crx-message-range {
@@ -166,7 +171,7 @@
 .crx-field-wrap {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 4px;
     min-width: 0;
 }
 
@@ -206,6 +211,10 @@
     color: var(--crx-white);
 }
 
+.crx-topic-form .crx-info-button {
+    filter: brightness(0.9);
+}
+
 .crx-help-text {
     display: none;
     position: fixed;
@@ -243,7 +252,7 @@
 }
 
 .crx-textarea {
-    min-height: 78px;
+    min-height: 100px;
     padding: 8px 10px;
     resize: vertical;
     line-height: 1.45;
@@ -325,8 +334,8 @@
 .crx-check-row {
     display: flex;
     align-items: center;
-    gap: 8px;
-    min-height: 30px;
+    gap: 4px;
+    min-height: calc(var(--mainFontSize) * 1.4);
     color: var(--crx-primary);
 }
 
@@ -561,9 +570,10 @@
 
 .crx-twitter-more {
     margin-left: auto;
-    color: #8b98a5;
+    color: #c7c7c7;
     font-size: 0.9rem;
     line-height: 1;
+    transform: rotate(90deg);
 }
 
 .crx-twitter-author {
@@ -573,6 +583,12 @@
     color: #0f1419;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.crx-twitter-lock {
+    flex: 0 0 auto;
+    font-size: 0.72rem;
+    line-height: 1;
 }
 
 .crx-twitter-handle,
@@ -606,21 +622,30 @@
     font-size: 0.8rem;
 }
 
-.crx-twitter-actions span, .crx-twitter-reply-actions span {
+.crx-twitter-actions div, .crx-twitter-reply-actions div {
     display: inline-flex;
-    align-items: center;
+    align-items: end;
     gap: 2px;
     min-width: 24px;
     flex: 1;
+    line-height: 1;
 }
 
 .crx-twitter-actions i, .crx-twitter-reply-actions i {
     font-size: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.crx-twitter-private-retweet i {
+    color: #c7cfd6;
 }
 
 .crx-twitter-actions .flex-0, .crx-twitter-reply-actions .flex-0 {
     flex: 0;
     justify-content: flex-end;
+    align-items: end;
 }
 
 .crx-twitter-quote {

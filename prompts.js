@@ -23,19 +23,19 @@ function buildGenerationPrompt(input, transcript, supplementalContext = '') {
         : `Write the final visible content only in "${input.output_language}". If the site country differs from output language, make it feel like translated reactions from ${countryLabel} users. Do not create "original" or "translation" objects anywhere when original preservation is not requested.`;
     const allowAiDates = input.reaction_mode === 'npc';
     const dateRule = allowAiDates
-        ? '- In NPC reaction mode, you may include "created_at" on posts, replies, and quote tweets when the fictional world has a meaningful in-story date/time. Use ISO 8601 strings if you include dates. The created_at value MUST be earlier than the in-story date and time. If there is no meaningful in-world date/time, omit "created_at" and the UI will generate timestamps.'
+        ? '- In NPC reaction mode, choose exactly one timestamp mode before writing JSON: IN_STORY_DATED or REAL_TIME_FALLBACK. Use IN_STORY_DATED only when the selected excerpt or NPC topic prompt gives a clear in-world date/time or calendar date. In that mode, you may include "created_at" on posts, replies, and quote tweets as ISO 8601 strings, and every created_at value MUST be earlier than or equal to the in-story date/time. Use REAL_TIME_FALLBACK when the in-world date/time is unclear, vague, relative, or absent; in that mode, omit every "created_at" field and the UI will generate real-current-time timestamps.'
         : '- Do not create "created_at" or "created_at_label" anywhere. The UI generates all post and reply timestamps.';
     const npcDateDiscipline = allowAiDates
-        ? `\nNPC in-story timestamp discipline:\n- Before writing JSON, identify the latest in-story "now" implied by the selected chat excerpt and the NPC topic prompt.\n- Treat that in-story "now" as the absolute upper limit for every created_at value.\n- Every post, reply, and quoted_post created_at must be earlier than or equal to that in-story "now"; never place a reaction in the future relative to the characters' current time.\n- If the in-story "now" is only a date with no clock time, use times earlier on that same date or earlier dates. Do not invent a later time on that date.\n- If you cannot confidently determine an in-story date/time, omit created_at entirely instead of guessing.\n- Immediately before returning JSON, audit every created_at value against the in-story "now". If any value is later, replace it with an earlier time or remove the field.`
+        ? `\nNPC timestamp mode:\n- First decide whether the excerpt/topic contains a clear in-story timestamp anchor.\n- Use IN_STORY_DATED only if there is an explicit or unambiguous in-world calendar date/time, such as a stated date, stated current time, dated message, timestamped news/post, or a topic prompt that directly defines the in-story date/time.\n- Do not infer a calendar date from vague sequence words like yesterday, earlier, later, next morning, after school, tonight, spring, winter, recently, or rumors unless an actual in-world date/time anchor is also present.\n- If there is no clear in-story timestamp anchor, use REAL_TIME_FALLBACK: omit created_at from every post, reply, and quoted_post. Do not invent any date.\n\nNPC in-story timestamp discipline for IN_STORY_DATED mode:\n- Before writing JSON, identify the latest in-story "now" implied by the selected chat excerpt and the NPC topic prompt.\n- Treat that in-story "now" as the absolute upper limit for every created_at value.\n- Every post, reply, and quoted_post created_at must be earlier than or equal to that in-story "now"; never place a reaction in the future relative to the characters' current time.\n- If the in-story "now" is only a date with no clock time, use times earlier on that same date or earlier dates. Do not invent a later time on that date.\n- Immediately before returning JSON, audit every created_at value against the in-story "now". If any value is later, replace it with an earlier time or remove the field.`
         : '';
     const daumDateRule = allowAiDates
-        ? 'For Daum Cafe, do not create author, handle, reposts, thumbnail, image, photo, thumbnail_label, or created_at_label fields; the UI will display all writers as 익명. You may include created_at only when an in-world date/time matters.'
+        ? 'For Daum Cafe, do not create author, handle, reposts, thumbnail, image, photo, thumbnail_label, or created_at_label fields; the UI will display all writers as 익명. Include created_at only in IN_STORY_DATED mode.'
         : 'For Daum Cafe, do not create author, handle, reposts, thumbnail, image, photo, thumbnail_label, created_at, or created_at_label fields; the UI will display all writers as 익명 and generate timestamps itself.';
     const everytimeDateRule = allowAiDates
-        ? 'For Everytime, do not create author, handle, reposts, thumbnail, image, photo, thumbnail_label, or created_at_label fields; the UI will display writers as 익명. You may include created_at only when an in-world date/time matters.'
+        ? 'For Everytime, do not create author, handle, reposts, thumbnail, image, photo, thumbnail_label, or created_at_label fields; the UI will display writers as 익명. Include created_at only in IN_STORY_DATED mode.'
         : 'For Everytime, do not create author, handle, reposts, thumbnail, image, photo, thumbnail_label, created_at, or created_at_label fields; the UI will display writers as 익명 and generate timestamps itself.';
     const twitterDateRule = allowAiDates
-        ? 'Do not create category, title, or created_at_label fields. You may include created_at on posts, replies, or quoted_post only when an in-world date/time matters.'
+        ? 'Do not create category, title, or created_at_label fields. Include created_at on posts, replies, or quoted_post only in IN_STORY_DATED mode.'
         : 'Do not create category, title, created_at, or created_at_label fields.';
     const siteCultureRule = input.site === 'daumCafe'
         ? `Daum Cafe users are women from ${countryLabel} in their 10s and 20s. They use a lot of memes and profanity, speak casually to each other, and interact in a friendly, familiar tone. Generate each entry as a board post with a catchy Korean title, a short body, and a random number of comments/replies from 0 to 9. If comments exist, some can be nested replies marked with is_reply: true. ${daumDateRule}`
@@ -49,7 +49,7 @@ function buildGenerationPrompt(input, transcript, supplementalContext = '') {
         siteRules.push(
             `- For Twitter/X, each post content must be between 10 and ${site.maxChars} characters, with varied random lengths across the timeline.`,
             '- For Twitter/X, Korean tweets that use many swear words, slang, or memes should sometimes ignore normal spacing.',
-            `- For Twitter/X, include author, handle, reposts, likes, views, replies_count, and reply author/handle fields. You may add "quoted_post" to some posts when a quote tweet makes the reaction more natural; quoted_post must contain author, handle, and the same text field format as a normal post. ${twitterDateRule}`,
+            `- For Twitter/X, include author, handle, is_private, reposts, likes, views, replies_count, and reply author/handle/is_private fields. Use is_private as a boolean for private/protected accounts. You may add "quoted_post" to some posts when a quote tweet makes the reaction more natural; quoted_post must contain author, handle, is_private, and the same text field format as a normal post. ${twitterDateRule}`,
         );
     } else if (input.site === 'daumCafe') {
         siteRules.push(
@@ -73,6 +73,7 @@ function buildGenerationPrompt(input, transcript, supplementalContext = '') {
     const supplementalRule = supplementalContext
         ? `\nAdditional context selected by the user:\n${supplementalContext}\nUse this only as background context. The selected chat excerpt remains the main source for the reaction target.`
         : '';
+    const npcTwitterProfileRule = buildNpcTwitterProfileRule(input);
     const promptName = input.reaction_mode === 'npc'
         ? `${site.label} community posts`
         : input.reader_community_title ? `${input.reader_community_title} community posts` : site.promptName;
@@ -96,6 +97,7 @@ ${readerConsumptionRule}
 ${siteCultureRule}
 ${customPromptRule}
 ${supplementalRule}
+${npcTwitterProfileRule}
 ${npcDateDiscipline}
 
 Rules:
@@ -114,6 +116,36 @@ ${siteRules.join('\n')}
 - Do not generate icons, emoji, HTML, CSS, or markdown.
 - Do not include real usernames of private individuals.
 `.trim();
+}
+
+function buildNpcTwitterProfileRule(input) {
+    if (!input.preserve_profile_identity || input.reaction_mode !== 'npc' || input.site !== 'twitter') {
+        return '';
+    }
+
+    if (!Array.isArray(input.npc_twitter_profiles) || !input.npc_twitter_profiles.length) {
+        return '\nProfile consistency rules:\n- Profile consistency is enabled for this NPC Twitter category.\n- If the same named in-world character or fixed account posts more than once in this response, keep its author, handle, and is_private identical within the response.';
+    }
+
+    const profiles = input.npc_twitter_profiles
+        .map((profile, index) => {
+            const author = formatProfileField(profile.author, '익명');
+            const handle = formatProfileField(profile.handle, '(no handle)');
+            const isPrivate = profile.is_private ? 'true' : 'false';
+            return `${index + 1}. author="${author}", handle="${handle}", is_private=${isPrivate}`;
+        })
+        .join('\n');
+
+    return `\nNPC Twitter profile memory for this category:\n${profiles}\n\nProfile consistency rules:\n- These profiles come from previous saved results in the same NPC reaction category.\n- If the same named in-world character or fixed account appears again, copy its author, handle, and is_private exactly from this list.\n- The UI derives the profile image from author + handle, so changing either value changes the avatar. Keep both stable for recurring characters.\n- Do not force these profiles onto unrelated random background NPCs. Create new profiles only for genuinely new one-off accounts.`;
+}
+
+function formatProfileField(value, fallback) {
+    const text = String(value || '')
+        .replace(/\s+/g, ' ')
+        .replace(/"/g, '\\"')
+        .trim()
+        .slice(0, 80);
+    return text || fallback;
 }
 
 function buildReaderModeIntro(input, transcript) {
@@ -189,6 +221,7 @@ function buildPostTemplate(input, originalLanguage) {
       "id": "post_001",
       "author": "display name",
       "handle": "@handle",
+      "is_private": false,
       ${tweetText},
       "likes": 0,
       "reposts": 0,
@@ -197,6 +230,7 @@ function buildPostTemplate(input, originalLanguage) {
       "quoted_post": {
         "author": "quoted display name",
         "handle": "@quoted_handle",
+        "is_private": false,
         ${quotedTweetText}
       },
       "replies": [
@@ -204,6 +238,7 @@ function buildPostTemplate(input, originalLanguage) {
           "id": "reply_001_001",
           "author": "display name",
           "handle": "@handle",
+          "is_private": false,
           ${tweetReplyText},
           "likes": 0
         }

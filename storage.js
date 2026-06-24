@@ -1,6 +1,79 @@
 globalThis.CommunityReactionsStorage = (() => {
 'use strict';
 
+const DEFAULT_NPC_TOPICS = Object.freeze([
+    Object.freeze({
+        id: 'topic_private_thought_timeline',
+        title: '속마음 타임라인',
+        site: 'twitter',
+        prompt: '- {{char}}와 {{user}}가 쓰는 프라이빗 트위터 계정\n- 두 계정은 모두 팔로잉 0, 팔로워 0지만 해당 타임라인에서는 두 계정의 트윗을 한꺼번에 볼 수 있다.\n- 혼자만의 일기장으로 쓴다. 속마음, 고민, 별것 아닌 생각들을 모두 적는다.',
+        preserve_profile_identity: true,
+        created_at: '2026-06-24T00:00:00.000Z',
+        updated_at: '2026-06-24T00:00:00.000Z',
+        is_default: true,
+    }),
+]);
+
+function coerceBoolean(value) {
+    if (typeof value === 'boolean') {
+        return value;
+    }
+
+    if (typeof value === 'number') {
+        return value !== 0;
+    }
+
+    if (typeof value === 'string') {
+        return ['true', '1', 'yes', 'y'].includes(value.trim().toLowerCase());
+    }
+
+    return false;
+}
+
+function cloneDefaultNpcTopic(topic) {
+    return { ...topic, is_default: true };
+}
+
+function getDefaultNpcTopics() {
+    return DEFAULT_NPC_TOPICS.map(cloneDefaultNpcTopic);
+}
+
+function normalizeReaderSiteOptionsMap(value) {
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+function withDefaultNpcTopics(index) {
+    const npcTopics = Array.isArray(index?.npc_topics) ? index.npc_topics : [];
+    const normalizedTopics = npcTopics.map(topic => {
+        if (!topic || typeof topic !== 'object') {
+            return topic;
+        }
+
+        const defaultTopic = DEFAULT_NPC_TOPICS.find(item => item.id === topic?.id);
+        if (!defaultTopic) {
+            return topic;
+        }
+
+        return {
+            ...cloneDefaultNpcTopic(defaultTopic),
+            ...topic,
+            preserve_profile_identity: Object.prototype.hasOwnProperty.call(topic, 'preserve_profile_identity')
+                ? coerceBoolean(topic.preserve_profile_identity)
+                : coerceBoolean(defaultTopic.preserve_profile_identity),
+            is_default: true,
+        };
+    });
+    const existingIds = new Set(normalizedTopics.map(topic => String(topic?.id || '')));
+    const missingDefaults = DEFAULT_NPC_TOPICS
+        .filter(topic => !existingIds.has(topic.id))
+        .map(cloneDefaultNpcTopic);
+
+    return {
+        ...index,
+        npc_topics: [...missingDefaults, ...normalizedTopics],
+    };
+}
+
 function create(deps) {
     const {
         DEFAULT_MAX_TOKENS,
@@ -61,8 +134,9 @@ function create(deps) {
             version: 1,
             chat_pk: chatPk,
             items: [],
-            npc_topics: [],
+            npc_topics: getDefaultNpcTopics(),
             reader_communities: [],
+            reader_site_options: {},
         };
     }
 
@@ -119,8 +193,10 @@ function create(deps) {
             if (!Array.isArray(index.reader_communities)) {
                 index.reader_communities = [];
             }
-            index.items.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
-            return index;
+            index.reader_site_options = normalizeReaderSiteOptionsMap(index.reader_site_options);
+            const indexWithDefaults = withDefaultNpcTopics(index);
+            indexWithDefaults.items.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+            return indexWithDefaults;
         } catch {
             return createEmptyIndex(chatPk);
         }
@@ -128,13 +204,14 @@ function create(deps) {
 
     async function saveIndex(index, fallbackChatPk = null) {
         const chatPk = index?.chat_pk || fallbackChatPk;
-        await uploadJson(indexFileName(chatPk), {
+        const normalizedIndex = withDefaultNpcTopics({
             ...createEmptyIndex(chatPk),
             ...index,
-            npc_topics: Array.isArray(index?.npc_topics) ? index.npc_topics : [],
             reader_communities: Array.isArray(index?.reader_communities) ? index.reader_communities : [],
+            reader_site_options: normalizeReaderSiteOptionsMap(index?.reader_site_options),
             items: Array.isArray(index?.items) ? index.items : [],
         });
+        await uploadJson(indexFileName(chatPk), normalizedIndex);
     }
 
     async function saveResult(result) {
@@ -148,6 +225,7 @@ function create(deps) {
             reaction_mode: result.generation.reaction_mode || 'reader',
             topic_id: result.generation.topic_id || '',
             topic_title: result.generation.topic_title || '',
+            preserve_profile_identity: Boolean(result.generation.preserve_profile_identity),
             reader_community_id: result.generation.reader_community_id || '',
             reader_community_title: result.generation.reader_community_title || '',
             site: result.generation.site,
@@ -194,6 +272,7 @@ function create(deps) {
                 reaction_mode: input.reaction_mode || 'reader',
                 topic_id: input.topic_id || '',
                 topic_title: input.topic_title || '',
+                preserve_profile_identity: Boolean(input.preserve_profile_identity),
                 reader_community_id: input.reader_community_id || '',
                 reader_community_title: input.reader_community_title || '',
                 site: input.site,
