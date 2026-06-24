@@ -3,10 +3,10 @@
     "loading_order": 101,
     "requires": [],
     "optional": ["connection-manager"],
-    "js": "index.js?v=20260624-global-country-random-1",
-    "css": "style.css?v=20260518-private-twitter-2",
+    "js": "index.js?v=20260624-3",
+    "css": "style.css?v=20260624-3",
     "author": "blank242",
-    "version": "0.1.0",
+    "version": "0.1.5",
     "homePage": "",
     "auto_update": false
 }
