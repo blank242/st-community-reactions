@@ -3,10 +3,10 @@
     "loading_order": 101,
     "requires": [],
     "optional": ["connection-manager"],
-    "js": "index.js?v=20260625-phone-ani-2",
-    "css": "style.css?v=20260624-custom-country-1",
+    "js": "index.js?v=20260625-2",
+    "css": "style.css?v=20260624-1",
     "author": "blank242",
-    "version": "0.1.5",
+    "version": "2.0",
     "homePage": "",
     "auto_update": false
 }
