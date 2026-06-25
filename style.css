@@ -37,8 +37,6 @@
 .crx-post-editor-modal .crx-popup {
     max-width: 540px;
     height: min-content;
-    top: 50%;
-    transform: translateY(-50%);
 }
 
 .crx-post-editor .crx-sheet {
@@ -199,6 +197,10 @@
     flex-direction: column;
     gap: 4px;
     min-width: 0;
+}
+
+#crx-custom-country-row {
+    grid-column: 1 / -1;
 }
 
 .crx-label {
@@ -1764,7 +1766,6 @@
 
 @media (max-width: 640px) {
     .crx-modal {
-        align-items: stretch;
         padding: 8px;
     }
 

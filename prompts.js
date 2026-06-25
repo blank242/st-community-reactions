@@ -6,21 +6,25 @@ function create(deps) {
         COUNTRY_PRESETS,
         LANGUAGE_PRESETS,
         SITE_PRESETS,
+        getCountryContext,
         isBoardSite,
     } = deps;
 
-function buildGenerationPrompt(input, transcript, supplementalContext = '') {
-    const site = SITE_PRESETS[input.site];
-    const country = COUNTRY_PRESETS[input.site_country];
-    const languageLabel = LANGUAGE_PRESETS[input.output_language] || input.output_language;
-    const countryLabel = country?.label || input.site_country;
-    const originalLanguage = country?.language || input.output_language;
+    function buildGenerationPrompt(input, transcript, supplementalContext = '') {
+        const site = SITE_PRESETS[input.site];
+        const languageLabel = LANGUAGE_PRESETS[input.output_language] || input.output_language;
+        const countryContext = typeof getCountryContext === 'function'
+            ? getCountryContext(input.site_country, input.custom_site_country)
+            : null;
+        const country = COUNTRY_PRESETS[input.site_country];
+        const countryLabel = input.site_country_label || countryContext?.label || country?.label || input.custom_site_country || input.site_country;
+        const originalLanguage = input.site_country_language_label || countryContext?.languageLabel || country?.language || input.output_language;
     const antiRule = input.has_anti
         ? 'Include one or two anti/critical posts and include fan replies arguing with them.'
         : 'Do not include anti-bait; keep reactions mostly neutral to enthusiastic.';
     const originalRule = input.preserve_original
-        ? `For every post and reply, provide both original text in "${originalLanguage}" and translated text in "${input.output_language}".`
-        : `Write the final visible content only in "${input.output_language}". If the site country differs from output language, make it feel like translated reactions from ${countryLabel} users. Do not create "original" or "translation" objects anywhere when original preservation is not requested.`;
+        ? `For every post and reply, provide both original text in "${originalLanguage}" and translated text in "${languageLabel}".`
+        : `Write the final visible content only in "${languageLabel}". If the site country differs from output language, make it feel like translated reactions from ${countryLabel} users. Do not create "original" or "translation" objects anywhere when original preservation is not requested.`;
     const allowAiDates = input.reaction_mode === 'npc';
     const dateRule = allowAiDates
         ? '- In NPC reaction mode, choose exactly one timestamp mode before writing JSON: IN_STORY_DATED or REAL_TIME_FALLBACK. Use IN_STORY_DATED only when the selected excerpt or NPC topic prompt gives a clear in-world date/time or calendar date. In that mode, you may include "created_at" on posts, replies, and quote tweets as ISO 8601 strings, and every created_at value MUST be earlier than or equal to the in-story date/time. Use REAL_TIME_FALLBACK when the in-world date/time is unclear, vague, relative, or absent; in that mode, omit every "created_at" field and the UI will generate real-current-time timestamps.'

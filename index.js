@@ -11,9 +11,22 @@ globalThis.CommunityReactionsExtension = (() => {
             ? new URL('.', src).href
             : new URL(`/scripts/extensions/third-party/${MODULE_NAME}/`, window.location.href).href;
     })();
-    const TEMPLATE_SCRIPT_VERSION = '20260624-category-options-1';
-    const PROMPT_SCRIPT_VERSION = '20260624-profile-memory-option-1';
-    const STORAGE_SCRIPT_VERSION = '20260624-category-options-1';
+    const TEMPLATE_SCRIPT_VERSION = '20260625-payment-edit-1';
+    const PROMPT_SCRIPT_VERSION = '20260624-custom-country-1';
+    const STORAGE_SCRIPT_VERSION = '20260624-custom-country-1';
+    const PHONE_SCRIPT_VERSION = '20260625-phone-ani-2';
+    const PHONE_STYLE_VERSION = '20260625-phone-ani-2';
+    const PHONE_PAYMENT_STYLE_VERSION = '20260625-payment-edit-1';
+    const PHONE_MODULE_SCRIPT_GROUPS = Object.freeze([
+        Object.freeze(['phone-registry.js']),
+        Object.freeze([
+            'phone-home.js',
+            'phone-payment-helpers.js',
+            'phone-app-safari.js',
+            'phone-app-static.js',
+        ]),
+        Object.freeze(['phone-app-payment-history.js']),
+    ]);
     const FILE_PREFIX = 'crx';
     const JSON_INDENT = 2;
     const VIEW_PAGE_SIZE = 6;
@@ -73,21 +86,66 @@ globalThis.CommunityReactionsExtension = (() => {
             maxChars: 700,
             promptName: 'web novel review page',
         },
+        googleSearch: {
+            label: '구글 검색결과',
+            supportsCountry: true,
+            minPosts: 1,
+            maxPosts: 4,
+            defaultPosts: 4,
+            maxChars: 300,
+            promptName: 'Google search history and search results',
+        },
+        paymentHistory: {
+            label: '결제 내역',
+            supportsCountry: true,
+            minPosts: 10,
+            maxPosts: 10,
+            defaultPosts: 10,
+            maxChars: 500,
+            promptName: 'iPhone banking payment history',
+        },
     });
 
     const READER_SITE_KEYS = Object.freeze(['twitter', 'daumCafe', 'webNovelReview']);
     const NPC_SITE_KEYS = Object.freeze(['twitter', 'daumCafe', 'everytime']);
+    const PHONE_APP_PRESETS = Object.freeze({
+        googleSearch: {
+            id: 'googleSearch',
+            label: '구글 검색결과',
+            homeLabel: 'Safari',
+            countLabel: '검색어 수',
+            promptName: 'Google search history and search results',
+            minSearches: 1,
+            maxSearches: 4,
+            defaultSearches: 4,
+            minResults: 5,
+            maxResults: 7,
+        },
+        paymentHistory: {
+            id: 'paymentHistory',
+            label: '결제 내역',
+            homeLabel: 'Bank',
+            countLabel: '결제내역 수',
+            promptName: 'Payment history',
+            minTransactions: 10,
+            maxTransactions: 10,
+            defaultTransactions: 10,
+        },
+    });
+    const PHONE_APP_KEYS = Object.freeze(Object.keys(PHONE_APP_PRESETS));
     const ADD_OPTION_VALUE = '__add__';
 
+    const CUSTOM_COUNTRY_KEY = 'custom';
     const COUNTRY_PRESETS = Object.freeze({
         korea: { label: '한국', language: 'ko' },
         japan: { label: '일본', language: 'ja' },
         usa: { label: '미국', language: 'en' },
         china: { label: '중국', language: 'zh' },
         global: { label: '글로벌', language: 'en' },
+        [CUSTOM_COUNTRY_KEY]: { label: '직접 입력', language: '' },
     });
 
-    const RANDOM_COUNTRY_KEYS = Object.freeze(Object.keys(COUNTRY_PRESETS).filter(key => key !== 'global'));
+    const RANDOM_COUNTRY_KEYS = Object.freeze(Object.keys(COUNTRY_PRESETS).filter(key => key !== 'global' && key !== CUSTOM_COUNTRY_KEY));
 
     const LANGUAGE_PRESETS = Object.freeze({
         ko: '한국어',
@@ -107,11 +165,13 @@ globalThis.CommunityReactionsExtension = (() => {
     const REACTION_MODES = Object.freeze({
         reader: '독자 반응',
         npc: '작중 NPC 반응',
+        phone: '휴대폰 확인하기',
     });
 
     let templates = null;
     let communityRenderers = null;
     let prompts = null;
+    let phone = null;
     let storage = null;
 
     function getCommunityRenderer(site = state.activeCommunity) {
@@ -172,6 +232,20 @@ globalThis.CommunityReactionsExtension = (() => {
             script.onerror = () => reject(new Error(`Failed to load ${fileName}`));
             document.head.appendChild(script);
         });
+    }
+
+    function loadExtensionStyle(fileName) {
+        const href = new URL(fileName, EXTENSION_BASE_URL).href;
+        const existing = [...document.querySelectorAll('link[rel="stylesheet"]')].find(link => link.dataset.crxStyle === href || link.href === href);
+        if (existing) {
+            return;
+        }
+
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = href;
+        link.dataset.crxStyle = href;
+        document.head.appendChild(link);
     }
 
     function createId(prefix = 'crx') {
@@ -332,13 +406,84 @@ globalThis.CommunityReactionsExtension = (() => {
         return items[Math.floor(Math.random() * items.length)];
     }
 
-    function resolveSiteCountryForGeneration(siteCountry) {
+    function normalizeCustomCountry(value) {
+        return String(value || '')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .slice(0, 80);
+    }
+
+    function inferCustomCountryLanguage(customCountry) {
+        const text = normalizeCustomCountry(customCountry).toLowerCase();
+        if (!text) {
+            return '';
+        }
+        if (/(한국|대한민국|korea|korean)/i.test(text)) {
+            return 'ko';
+        }
+        if (/(일본|japan|japanese)/i.test(text)) {
+            return 'ja';
+        }
+        if (/(미국|미합중국|usa|u\.s\.a|united states|america|american|영국|uk|u\.k|britain|england|canada|australia|new zealand)/i.test(text)) {
+            return 'en';
+        }
+        if (/(중국|china|chinese|대만|taiwan|홍콩|hong kong)/i.test(text)) {
+            return 'zh';
+        }
+        return '';
+    }
+
+    function isAmericanCountry(countryKey, customCountry = '') {
+        if (countryKey === 'usa') {
+            return true;
+        }
+        if (countryKey !== CUSTOM_COUNTRY_KEY) {
+            return false;
+        }
+        return /(미국|미합중국|usa|u\.s\.a|united states|american)/i.test(normalizeCustomCountry(customCountry));
+    }
+
+    function getCountryContext(countryKey, customCountry = '') {
+        const key = COUNTRY_PRESETS[countryKey] ? countryKey : 'korea';
+        const customLabel = normalizeCustomCountry(customCountry);
+        const preset = COUNTRY_PRESETS[key] || COUNTRY_PRESETS.korea;
+        const isCustom = key === CUSTOM_COUNTRY_KEY;
+        const label = isCustom ? customLabel || preset.label : preset.label;
+        const language = isCustom ? inferCustomCountryLanguage(customLabel) : preset.language;
+        const languageLabel = language
+            ? LANGUAGE_PRESETS[language] || language
+            : isCustom && customLabel ? `the natural local language of ${customLabel}` : '';
+
+        return {
+            key,
+            label,
+            language,
+            languageLabel,
+            isCustom,
+            isAmerican: isAmericanCountry(key, customLabel),
+        };
+    }
+
+    function shouldShowPreserveOriginal(countryContext, outputLanguage, isPhone) {
+        if (isPhone) {
+            return false;
+        }
+        if (countryContext.isCustom && !countryContext.language) {
+            return Boolean(countryContext.label && countryContext.label !== COUNTRY_PRESETS[CUSTOM_COUNTRY_KEY].label);
+        }
+        return Boolean(countryContext.language && outputLanguage !== countryContext.language);
+    }
+
+    function resolveSiteCountryForGeneration(siteCountry, customCountry = '') {
         const country = String(siteCountry || '');
         if (country === 'global') {
             return getRandomArrayItem(RANDOM_COUNTRY_KEYS) || 'usa';
         }
+        if (country === CUSTOM_COUNTRY_KEY && normalizeCustomCountry(customCountry)) {
+            return CUSTOM_COUNTRY_KEY;
+        }
 
-        return COUNTRY_PRESETS[country] ? country : 'korea';
+        return COUNTRY_PRESETS[country] && country !== CUSTOM_COUNTRY_KEY ? country : 'korea';
     }
 
     function getDefaultGenerationOptions(site, reactionMode = 'reader') {
@@ -374,8 +519,12 @@ globalThis.CommunityReactionsExtension = (() => {
 
         const defaults = getDefaultGenerationOptions(site, reactionMode);
         const preset = SITE_PRESETS[site] || SITE_PRESETS.twitter;
-        const country = preset.supportsCountry && COUNTRY_PRESETS[options.site_country]
-            ? options.site_country
+        const customCountry = normalizeCustomCountry(options.custom_site_country || options.customSiteCountry);
+        const requestedCountry = String(options.site_country || '');
+        const country = preset.supportsCountry
+            && COUNTRY_PRESETS[requestedCountry]
+            && (requestedCountry !== CUSTOM_COUNTRY_KEY || customCountry)
+            ? requestedCountry
             : defaults.site_country;
         const outputLanguage = LANGUAGE_PRESETS[options.output_language]
             ? options.output_language
@@ -392,6 +541,7 @@ globalThis.CommunityReactionsExtension = (() => {
             include_character_card: coerceBoolean(options.include_character_card),
             has_anti: coerceBoolean(options.has_anti),
             preserve_original: coerceBoolean(options.preserve_original),
+            custom_site_country: country === CUSTOM_COUNTRY_KEY ? customCountry : '',
         };
 
         if (reactionMode === 'reader') {
@@ -408,6 +558,9 @@ globalThis.CommunityReactionsExtension = (() => {
     function getGenerationOptionsFromInput(input) {
         const options = {
             site_country: input.selected_site_country || input.site_country,
+            custom_site_country: input.selected_site_country === CUSTOM_COUNTRY_KEY || input.site_country === CUSTOM_COUNTRY_KEY
+                ? normalizeCustomCountry(input.custom_site_country)
+                : '',
             output_language: input.output_language,
             api_source: input.apiSource === 'main' ? 'main' : input.apiSource,
             max_tokens: input.max_tokens,
@@ -445,6 +598,20 @@ globalThis.CommunityReactionsExtension = (() => {
             const options = normalizeGenerationOptions(value[site], site, 'reader');
             if (options) {
                 acc[site] = options;
+            }
+            return acc;
+        }, {});
+    }
+
+    function normalizePhoneAppOptionsMap(value) {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+            return {};
+        }
+
+        return PHONE_APP_KEYS.reduce((acc, appId) => {
+            const options = normalizeGenerationOptions(value[appId], appId, 'phone');
+            if (options) {
+                acc[appId] = options;
             }
             return acc;
         }, {});
@@ -507,6 +674,22 @@ globalThis.CommunityReactionsExtension = (() => {
         index.reader_site_options = {
             ...normalizeReaderSiteOptionsMap(index.reader_site_options),
             [normalizedSite]: normalizedOptions,
+        };
+        await saveIndex(index);
+        return normalizedOptions;
+    }
+
+    async function updatePhoneAppOptions(chatPk, appId, options) {
+        const normalizedAppId = getPhoneAppOrDefault(appId);
+        const normalizedOptions = normalizeGenerationOptions(options, normalizedAppId, 'phone');
+        if (!normalizedOptions) {
+            return null;
+        }
+
+        const index = await loadIndex(chatPk);
+        index.phone_app_options = {
+            ...normalizePhoneAppOptionsMap(index.phone_app_options),
+            [normalizedAppId]: normalizedOptions,
         };
         await saveIndex(index);
         return normalizedOptions;
@@ -606,6 +789,24 @@ globalThis.CommunityReactionsExtension = (() => {
         index.reader_site_options = {
             ...normalizeReaderSiteOptionsMap(index.reader_site_options),
             [site]: normalizedOptions,
+        };
+        setComposerIndex(root, index);
+    }
+
+    function upsertComposerPhoneAppOptions(root, appId, options) {
+        if (!root || !PHONE_APP_KEYS.includes(appId)) {
+            return;
+        }
+
+        const normalizedOptions = normalizeGenerationOptions(options, appId, 'phone');
+        if (!normalizedOptions) {
+            return;
+        }
+
+        const index = getComposerIndex(root);
+        index.phone_app_options = {
+            ...normalizePhoneAppOptionsMap(index.phone_app_options),
+            [appId]: normalizedOptions,
         };
         setComposerIndex(root, index);
     }
@@ -759,9 +960,10 @@ globalThis.CommunityReactionsExtension = (() => {
         state.postEditorModal?.remove();
         state.postEditorModal = null;
     }
-    function closeViewer() {
+    function closeViewer(options = {}) {
         closePostEditor();
-        state.viewerModal?.remove();
+        const modal = state.viewerModal;
+        const shouldAnimatePhone = Boolean(options.animatePhone && modal?.classList?.contains('crx-phone-viewer-modal'));
         state.viewerModal = null;
         state.activeResult = null;
         state.activeIndex = null;
@@ -778,6 +980,31 @@ globalThis.CommunityReactionsExtension = (() => {
         state.boardDetailPostKey = null;
         state.boardListScrollTop = 0;
         state.boardListRenderedCount = 0;
+        if (shouldAnimatePhone) {
+            animatePhoneViewerClose(modal);
+            return;
+        }
+        modal?.remove();
+    }
+
+    function animatePhoneViewerClose(modal) {
+        const popup = modal?.querySelector?.('.crx-popup.is-phone-mode');
+        if (!modal || !popup) {
+            modal?.remove();
+            return;
+        }
+
+        popup.style.animation = 'none';
+        void popup.offsetWidth;
+        popup.style.animation = '';
+        modal.classList.add('is-phone-closing');
+        popup.classList.add('is-phone-closing');
+        const removeModal = () => modal.remove();
+        const fallbackTimer = window.setTimeout(removeModal, 620);
+        popup.addEventListener('animationend', () => {
+            window.clearTimeout(fallbackTimer);
+            removeModal();
+        }, { once: true });
     }
 
     function getDefaultRange(context) {
@@ -813,6 +1040,8 @@ globalThis.CommunityReactionsExtension = (() => {
             LANGUAGE_PRESETS,
             MEDIA_TYPES,
             NPC_SITE_KEYS,
+            PHONE_APP_KEYS,
+            PHONE_APP_PRESETS,
             REACTION_MODES,
             READER_SITE_KEYS,
             SITE_PRESETS,
@@ -868,6 +1097,7 @@ globalThis.CommunityReactionsExtension = (() => {
             COUNTRY_PRESETS,
             LANGUAGE_PRESETS,
             SITE_PRESETS,
+            getCountryContext,
             isBoardSite,
         };
     }
@@ -884,6 +1114,37 @@ globalThis.CommunityReactionsExtension = (() => {
         }
 
         prompts = factory(createPromptDeps());
+    }
+
+    function createPhoneDeps() {
+        return {
+            COUNTRY_PRESETS,
+            LANGUAGE_PRESETS,
+            PHONE_APP_PRESETS,
+            createId,
+            escapeHtml,
+            getCountryContext,
+            sanitizeId,
+        };
+    }
+
+    async function initializePhone() {
+        if (phone) {
+            return;
+        }
+
+        loadExtensionStyle(`phone.css?v=${PHONE_STYLE_VERSION}`);
+        loadExtensionStyle(`phone-payments.css?v=${PHONE_PAYMENT_STYLE_VERSION}`);
+        for (const scriptGroup of PHONE_MODULE_SCRIPT_GROUPS) {
+            await Promise.all(scriptGroup.map(scriptName => loadExtensionScript(`${scriptName}?v=${PHONE_SCRIPT_VERSION}`)));
+        }
+        await loadExtensionScript(`phone.js?v=${PHONE_SCRIPT_VERSION}`);
+        const factory = globalThis.CommunityReactionsPhone?.create;
+        if (typeof factory !== 'function') {
+            throw new Error('CommunityReactionsPhone.create is not available.');
+        }
+
+        phone = factory(createPhoneDeps());
     }
 
     function createStorageDeps() {
@@ -956,6 +1217,9 @@ globalThis.CommunityReactionsExtension = (() => {
         if (mode === 'npc') {
             return `npc:${topicId || ADD_OPTION_VALUE}:${site}`;
         }
+        if (mode === 'phone') {
+            return `phone:${site}`;
+        }
 
         return readerCommunityId
             ? `reader-custom:${readerCommunityId}:${site}`
@@ -965,6 +1229,9 @@ globalThis.CommunityReactionsExtension = (() => {
     function getSavedGenerationOptionsForSelection(root, { mode, site, selectedReaderCommunity = null, selectedTopic = null }) {
         if (mode === 'npc') {
             return normalizeGenerationOptions(selectedTopic?.generation_options, site, 'npc');
+        }
+        if (mode === 'phone') {
+            return normalizeGenerationOptions(getComposerIndex(root).phone_app_options?.[site], site, 'phone');
         }
 
         if (selectedReaderCommunity) {
@@ -980,6 +1247,7 @@ globalThis.CommunityReactionsExtension = (() => {
             || getDefaultGenerationOptions(site, reactionMode);
         const preset = SITE_PRESETS[site] || SITE_PRESETS.twitter;
         const country = root.querySelector('#crx-country');
+        const customCountry = root.querySelector('#crx-custom-country');
         const language = root.querySelector('#crx-language');
         const mediaType = root.querySelector('#crx-media-type');
         const apiSource = root.querySelector('#crx-api-source');
@@ -987,6 +1255,9 @@ globalThis.CommunityReactionsExtension = (() => {
         const count = root.querySelector('#crx-post-count');
 
         setSelectValue(country, preset.supportsCountry ? normalized.site_country : preset.fixedCountry, preset.fixedCountry || 'korea');
+        if (customCountry) {
+            customCountry.value = normalized.site_country === CUSTOM_COUNTRY_KEY ? normalized.custom_site_country || '' : '';
+        }
         setSelectValue(language, normalized.output_language, 'ko');
         if (reactionMode === 'reader') {
             setSelectValue(mediaType, normalized.media_type, 'novel');
@@ -1028,6 +1299,9 @@ globalThis.CommunityReactionsExtension = (() => {
         const hasSelectedTopic = Boolean(selectedTopicOption?.value && selectedTopicOption.value !== ADD_OPTION_VALUE);
         const isDefaultTopic = selectedTopicOption?.dataset?.default === 'true';
         const isNpc = mode === 'npc';
+        const isPhone = mode === 'phone';
+        const phoneAppSelect = root.querySelector('#crx-phone-app');
+        const phoneAppId = getPhoneAppOrDefault(phoneAppSelect?.value);
         const composerIndex = getComposerIndex(root);
         const selectedReaderCommunity = readerCommunityId ? getReaderCommunity(composerIndex, readerCommunityId) : null;
         const selectedTopic = hasSelectedTopic ? getNpcTopic(composerIndex, selectedTopicOption.value) : null;
@@ -1046,9 +1320,11 @@ globalThis.CommunityReactionsExtension = (() => {
                 : selectedTopicOption?.dataset?.site ? getNpcSiteOrDefault(selectedTopicOption.dataset.site)
                     : '';
         const customPrompt = root.querySelector('#crx-custom-prompt');
-        const site = isNpc ? topicSite || NPC_SITE_KEYS[0] : readerSite;
+        const site = isPhone ? phoneAppId : isNpc ? topicSite || NPC_SITE_KEYS[0] : readerSite;
         const preset = SITE_PRESETS[site];
         const country = root.querySelector('#crx-country');
+        const customCountry = root.querySelector('#crx-custom-country');
+        const customCountryRow = root.querySelector('#crx-custom-country-row');
         const count = root.querySelector('#crx-post-count');
         const countValue = root.querySelector('#crx-post-count-value');
         const optionsSourceKey = getGenerationOptionsSourceKey({
@@ -1058,12 +1334,26 @@ globalThis.CommunityReactionsExtension = (() => {
             topicId: hasSelectedTopic ? selectedTopicOption.value : '',
         });
 
-        root.querySelector('#crx-reader-community-section')?.classList.toggle('is-hidden', isNpc);
-        root.querySelector('#crx-media-row')?.classList.toggle('is-hidden', isNpc);
+        root.classList.toggle('is-phone-mode', isPhone);
+        root.querySelector('#crx-reader-community-section')?.classList.toggle('is-hidden', isNpc || isPhone);
+        root.querySelector('#crx-phone-app-section')?.classList.toggle('is-hidden', !isPhone);
+        root.querySelector('#crx-media-row')?.classList.toggle('is-hidden', isNpc || isPhone);
         root.querySelector('#crx-topic-section')?.classList.toggle('is-hidden', !isNpc);
-        root.querySelector('#crx-custom-prompt-section')?.classList.toggle('is-hidden', isNpc || hasSelectedReaderCommunity || isAddingReaderCommunity);
-        readerForm?.classList.toggle('is-hidden', isNpc || !(isAddingReaderCommunity || hasSelectedReaderCommunity));
-        root.querySelector('#crx-delete-reader-community')?.classList.toggle('is-hidden', isNpc || !hasSelectedReaderCommunity);
+        root.querySelector('#crx-custom-prompt-section')?.classList.toggle('is-hidden', isNpc || (!isPhone && (hasSelectedReaderCommunity || isAddingReaderCommunity)));
+        readerForm?.classList.toggle('is-hidden', isNpc || isPhone || !(isAddingReaderCommunity || hasSelectedReaderCommunity));
+        root.querySelector('#crx-delete-reader-community')?.classList.toggle('is-hidden', isNpc || isPhone || !hasSelectedReaderCommunity);
+        root.querySelector('#crx-message-range-label').textContent = isPhone ? '내용을 확인할 메시지는' : '반응을 확인할 메시지는';
+        root.querySelector('#crx-country-label').textContent = isPhone ? '국적' : '국가';
+        root.querySelector('#crx-post-count-label').textContent = isPhone
+            ? PHONE_APP_PRESETS[phoneAppId]?.countLabel || '항목 수'
+            : '게시글 수';
+        root.querySelector('#crx-open-library').textContent = isPhone ? '휴대폰 열기' : '커뮤니티 보기';
+        const countryHelp = root.querySelector('[data-crx-help-text="국가"]');
+        if (countryHelp) {
+            countryHelp.textContent = isPhone
+                ? '해당 캐릭터의 국적. 화폐 단위, 시간, 말투, 맥락 등이 모두 국적에 맞게 생성됩니다.'
+                : '해당 커뮤니티 유저들의 국적. 반응은 국가에 맞는 말투와 분위기로 생성됩니다.';
+        }
         const saveReaderCommunityButton = root.querySelector('#crx-save-reader-community');
         if (saveReaderCommunityButton) {
             saveReaderCommunityButton.textContent = hasSelectedReaderCommunity ? '수정하기' : '커뮤니티 추가';
@@ -1084,7 +1374,7 @@ globalThis.CommunityReactionsExtension = (() => {
             root.querySelector('#crx-reader-community-title').value = selectedReaderCommunity?.title || selectedReaderOption.textContent.trim();
             root.querySelector('#crx-reader-community-site').value = getReaderSiteOrDefault(selectedReaderCommunity?.site || selectedReaderOption.dataset.site || 'twitter');
             root.querySelector('#crx-reader-community-prompt').value = selectedReaderCommunity?.prompt || '';
-        } else if (isNpc && readerForm) {
+        } else if ((isNpc || isPhone) && readerForm) {
             readerForm.dataset.communityId = '';
         }
         if (isNpc && isAddingTopic && topicForm?.dataset.topicId !== ADD_OPTION_VALUE) {
@@ -1135,6 +1425,7 @@ globalThis.CommunityReactionsExtension = (() => {
         if (!preset.supportsCountry) {
             country.value = preset.fixedCountry;
         }
+        customCountryRow?.classList.toggle('is-hidden', !preset.supportsCountry || country.value !== CUSTOM_COUNTRY_KEY);
 
         count.min = preset.minPosts;
         count.max = preset.maxPosts;
@@ -1149,15 +1440,15 @@ globalThis.CommunityReactionsExtension = (() => {
                 root,
                 getSavedGenerationOptionsForSelection(root, { mode, site, selectedReaderCommunity, selectedTopic }),
                 site,
-                isNpc ? 'npc' : 'reader',
+                isPhone ? 'phone' : isNpc ? 'npc' : 'reader',
             );
             root._crxGenerationOptionsSourceKey = optionsSourceKey;
         }
         countValue.textContent = `${count.value}개`;
 
         const outputLanguage = root.querySelector('#crx-language').value;
-        const countryLanguage = COUNTRY_PRESETS[country.value]?.language || outputLanguage;
-        const showPreserve = outputLanguage !== countryLanguage;
+        const countryContext = getCountryContext(country.value, customCountry?.value || '');
+        const showPreserve = shouldShowPreserveOriginal(countryContext, outputLanguage, isPhone);
         root.querySelector('#crx-preserve-row').classList.toggle('is-hidden', !showPreserve);
         if (!showPreserve) {
             root.querySelector('#crx-preserve-original').checked = false;
@@ -1201,6 +1492,7 @@ globalThis.CommunityReactionsExtension = (() => {
         const start = Math.max(1, Math.min(max, Number(root.querySelector('#crx-range-start').value || 1)));
         const end = Math.max(1, Math.min(max, Number(root.querySelector('#crx-range-end').value || max)));
         const reactionMode = root.querySelector('#crx-reaction-mode')?.value || 'reader';
+        const isPhone = reactionMode === 'phone';
         const readerSelect = root.querySelector('#crx-reader-community');
         const readerOption = readerSelect?.selectedOptions?.[0] || null;
         const readerSelection = String(readerSelect?.value || '');
@@ -1227,7 +1519,10 @@ globalThis.CommunityReactionsExtension = (() => {
         const topicPrompt = reactionMode === 'npc'
             ? String(isEditingTopic ? root.querySelector('#crx-topic-prompt')?.value : selectedTopic?.prompt || '').trim()
             : '';
-        const site = reactionMode === 'npc' && isEditingTopic
+        const phoneAppId = isPhone ? getPhoneAppOrDefault(root.querySelector('#crx-phone-app')?.value) : '';
+        const site = isPhone
+            ? phoneAppId
+            : reactionMode === 'npc' && isEditingTopic
             ? getNpcSiteOrDefault(root.querySelector('#crx-topic-site').value)
             : reactionMode === 'npc' && topicOption?.dataset?.site
                 ? getNpcSiteOrDefault(selectedTopic?.site || topicOption.dataset.site)
@@ -1238,9 +1533,14 @@ globalThis.CommunityReactionsExtension = (() => {
                         : getReaderSiteOrDefault(readerSelection.replace(/^site:/, ''));
         const sitePreset = SITE_PRESETS[site];
         const selectedCountry = sitePreset.supportsCountry ? root.querySelector('#crx-country').value : sitePreset.fixedCountry;
-        const country = sitePreset.supportsCountry ? resolveSiteCountryForGeneration(selectedCountry) : sitePreset.fixedCountry;
+        const customCountry = sitePreset.supportsCountry ? normalizeCustomCountry(root.querySelector('#crx-custom-country')?.value) : '';
+        if (sitePreset.supportsCountry && selectedCountry === CUSTOM_COUNTRY_KEY && !customCountry) {
+            throw new Error('직접 입력할 국적을 적어주세요.');
+        }
+        const country = sitePreset.supportsCountry ? resolveSiteCountryForGeneration(selectedCountry, customCountry) : sitePreset.fixedCountry;
         const outputLanguage = root.querySelector('#crx-language').value;
-        const countryLanguage = COUNTRY_PRESETS[country]?.language || outputLanguage;
+        const countryContext = getCountryContext(country, country === CUSTOM_COUNTRY_KEY ? customCountry : '');
+        const showPreserve = shouldShowPreserveOriginal(countryContext, outputLanguage, isPhone);
         const preserveProfileIdentity = reactionMode === 'npc'
             && site === 'twitter'
             && Boolean(root.querySelector('#crx-preserve-profile-identity')?.checked);
@@ -1263,6 +1563,9 @@ globalThis.CommunityReactionsExtension = (() => {
             start,
             end,
             reaction_mode: reactionMode,
+            phone_app_id: phoneAppId,
+            phone_app_label: isPhone ? PHONE_APP_PRESETS[phoneAppId]?.label || '어플리케이션' : '',
+            character_name: getActiveCharacterName(context),
             topic_id: topicId,
             topic_title: topicTitle,
             topic_prompt: effectiveTopicPrompt,
@@ -1273,8 +1576,13 @@ globalThis.CommunityReactionsExtension = (() => {
             site,
             selected_site_country: selectedCountry,
             site_country: country,
+            custom_site_country: country === CUSTOM_COUNTRY_KEY ? customCountry : '',
+            site_country_label: countryContext.label,
+            site_country_language: countryContext.language,
+            site_country_language_label: countryContext.languageLabel,
+            is_american_country: countryContext.isAmerican,
             output_language: outputLanguage,
-            media_type: reactionMode === 'npc' ? '' : root.querySelector('#crx-media-type').value,
+            media_type: reactionMode === 'npc' || isPhone ? '' : root.querySelector('#crx-media-type').value,
             apiSource: root.querySelector('#crx-api-source').value,
             max_tokens: getMaxTokensInput(root),
             post_count: Number(root.querySelector('#crx-post-count').value || sitePreset.defaultPosts),
@@ -1282,11 +1590,20 @@ globalThis.CommunityReactionsExtension = (() => {
             include_world_info: root.querySelector('#crx-include-world-info')?.checked || false,
             include_character_card: root.querySelector('#crx-include-character-card')?.checked || false,
             has_anti: root.querySelector('#crx-has-anti').checked,
-            preserve_original: outputLanguage !== countryLanguage && root.querySelector('#crx-preserve-original').checked,
+            preserve_original: showPreserve && root.querySelector('#crx-preserve-original').checked,
             custom_prompt: reactionMode === 'npc'
                 ? ''
                 : readerCommunityId ? readerCommunityPrompt : String(root.querySelector('#crx-custom-prompt')?.value || '').trim(),
         };
+    }
+
+    function getActiveCharacterName(context) {
+        const character = getCurrentCharacters(context)[0] || context?.characters?.[context?.characterId] || null;
+        return String(character?.name || context?.name2 || context?.character?.name || '').trim();
+    }
+
+    function getPhoneAppOrDefault(value) {
+        return PHONE_APP_KEYS.includes(value) ? value : PHONE_APP_KEYS[0];
     }
 
     function getNpcSiteOrDefault(value) {
@@ -1624,7 +1941,9 @@ globalThis.CommunityReactionsExtension = (() => {
         const promptInput = profileMemory.length
             ? { ...input, npc_twitter_profiles: profileMemory }
             : input;
-        const prompt = prompts.buildGenerationPrompt(promptInput, transcript, supplementalContext);
+        const prompt = input.reaction_mode === 'phone'
+            ? phone.buildPhoneGenerationPrompt(input, transcript, supplementalContext)
+            : prompts.buildGenerationPrompt(promptInput, transcript, supplementalContext);
         let raw = '';
         if (input.apiSource === 'main') {
             if (!context.generateRaw) {
@@ -1650,8 +1969,17 @@ globalThis.CommunityReactionsExtension = (() => {
             throw parseError;
         }
 
-        const posts = normalizePosts(parsed.posts, input);
-        if (!posts.length) {
+        const phonePayload = input.reaction_mode === 'phone'
+            ? phone.normalizePhonePayload(parsed, input)
+            : null;
+        const posts = input.reaction_mode === 'phone' ? [] : normalizePosts(parsed.posts, input);
+        if (input.reaction_mode === 'phone' && !phone.hasPhoneAppContent(phonePayload)) {
+            const schemaError = new Error('생성된 휴대폰 데이터가 없습니다.');
+            const fileName = await saveFailedGeneration(chatPk, input, raw, schemaError, 'schema_validation');
+            schemaError.crxFailedFile = fileName;
+            throw schemaError;
+        }
+        if (input.reaction_mode !== 'phone' && !posts.length) {
             const schemaError = new Error('생성된 데이터에 게시글이 없습니다.');
             const fileName = await saveFailedGeneration(chatPk, input, raw, schemaError, 'schema_validation');
             schemaError.crxFailedFile = fileName;
@@ -1665,6 +1993,9 @@ globalThis.CommunityReactionsExtension = (() => {
             created_at: new Date().toISOString(),
             generation: {
                 reaction_mode: input.reaction_mode || 'reader',
+                phone_app_id: input.phone_app_id || '',
+                phone_app_label: input.phone_app_label || '',
+                character_name: input.character_name || '',
                 topic_id: input.topic_id || '',
                 topic_title: input.topic_title || '',
                 topic_prompt: input.topic_prompt || '',
@@ -1673,7 +2004,13 @@ globalThis.CommunityReactionsExtension = (() => {
                 reader_community_title: input.reader_community_title || '',
                 reader_community_prompt: input.reader_community_prompt || '',
                 site: input.site,
+                selected_site_country: input.selected_site_country || input.site_country,
                 site_country: input.site_country,
+                custom_site_country: input.custom_site_country || '',
+                site_country_label: input.site_country_label || '',
+                site_country_language: input.site_country_language || '',
+                site_country_language_label: input.site_country_language_label || '',
+                is_american_country: Boolean(input.is_american_country),
                 output_language: input.output_language,
                 preserve_original: input.preserve_original,
                 has_anti: input.has_anti,
@@ -1683,6 +2020,7 @@ globalThis.CommunityReactionsExtension = (() => {
                 include_world_info: input.include_world_info,
                 include_character_card: input.include_character_card,
             },
+            phone: phonePayload,
             posts,
         };
     }
@@ -1848,6 +2186,7 @@ globalThis.CommunityReactionsExtension = (() => {
         await initializeStorage();
         await initializeTemplates();
         await initializePrompts();
+        await initializePhone();
 
         const context = getContextSafe();
         if (!context?.chat?.length) {
@@ -1868,9 +2207,11 @@ globalThis.CommunityReactionsExtension = (() => {
         root.querySelector('#crx-reaction-mode').addEventListener('change', () => syncComposerControls(root));
         root.querySelector('#crx-reader-community').addEventListener('change', () => syncComposerControls(root));
         root.querySelector('#crx-reader-community-site').addEventListener('change', () => syncComposerControls(root));
+        root.querySelector('#crx-phone-app').addEventListener('change', () => syncComposerControls(root));
         root.querySelector('#crx-topic').addEventListener('change', () => syncComposerControls(root));
         root.querySelector('#crx-topic-site').addEventListener('change', () => syncComposerControls(root));
         root.querySelector('#crx-country').addEventListener('change', () => syncComposerControls(root));
+        root.querySelector('#crx-custom-country').addEventListener('input', () => syncComposerControls(root));
         root.querySelector('#crx-language').addEventListener('change', () => syncComposerControls(root));
         root.querySelector('#crx-post-count').addEventListener('input', () => syncComposerControls(root));
         root.querySelector('#crx-topic-prompt').addEventListener('input', () => {
@@ -1924,7 +2265,10 @@ globalThis.CommunityReactionsExtension = (() => {
         root.querySelector('#crx-delete-reader-community').addEventListener('click', () => void handleDeleteReaderCommunity(root, chatPk));
         root.querySelector('#crx-save-topic').addEventListener('click', () => void handleSaveNpcTopic(root, chatPk));
         root.querySelector('#crx-delete-topic').addEventListener('click', () => void handleDeleteNpcTopic(root, chatPk));
-        root.querySelector('#crx-open-library').addEventListener('click', () => void openLibrary());
+        root.querySelector('#crx-open-library').addEventListener('click', () => {
+            const mode = root.querySelector('#crx-reaction-mode')?.value || 'reader';
+            void (mode === 'phone' ? openPhoneLibrary() : openLibrary());
+        });
         root.querySelector('#crx-generate').addEventListener('click', () => void handleGenerate(root));
         syncComposerControls(root);
         syncMessagePreviews(root, context);
@@ -2099,6 +2443,7 @@ globalThis.CommunityReactionsExtension = (() => {
             await persistEditedNpcTopicPrompt(root, input);
             await persistEditedReaderCommunityPrompt(root, input);
             await persistReaderSiteGenerationOptions(root, input);
+            await persistPhoneAppGenerationOptions(root, input);
             button.disabled = true;
             const loadingText = '반응 서치 중입니다';
             let loadingDotCount = 1;
@@ -2111,7 +2456,11 @@ globalThis.CommunityReactionsExtension = (() => {
             const result = await generateReaction(input);
             await saveResult(result);
             closeComposer();
-            await openViewer(result);
+            if (input.reaction_mode === 'phone') {
+                await openPhoneViewer(result);
+            } else {
+                await openViewer(result);
+            }
         } catch (error) {
             const message = error?.crxFailedFile
                 ? `${error instanceof SyntaxError ? '생성된 데이터에 문제가 있습니다.' : (error?.message || '생성에 실패했습니다.')} (${error.crxFailedFile})`
@@ -2180,6 +2529,24 @@ globalThis.CommunityReactionsExtension = (() => {
         }
     }
 
+    async function persistPhoneAppGenerationOptions(root, input) {
+        if (input.reaction_mode !== 'phone' || !input.phone_app_id) {
+            return;
+        }
+
+        const generationOptions = getGenerationOptionsFromInput(input);
+        const previousOptions = getComposerIndex(root).phone_app_options?.[input.phone_app_id] || null;
+        if (areGenerationOptionsEqual(previousOptions, generationOptions, input.phone_app_id, 'phone')) {
+            return;
+        }
+
+        const chatPk = ensureChatPk(getContextSafe());
+        const savedOptions = await updatePhoneAppOptions(chatPk, input.phone_app_id, generationOptions);
+        if (savedOptions) {
+            upsertComposerPhoneAppOptions(root, input.phone_app_id, savedOptions);
+        }
+    }
+
     async function persistEditedNpcTopicPrompt(root, input) {
         if (input.reaction_mode !== 'npc' || !input.topic_id) {
             return;
@@ -2231,16 +2598,21 @@ globalThis.CommunityReactionsExtension = (() => {
         const chatPk = ensureChatPk(context);
         const index = await loadIndex(chatPk);
 
-        if (!index.items.length) {
+        const firstItem = index.items.find(item => getItemReactionMode(item) !== 'phone');
+        if (!firstItem) {
             toastr.info('저장된 커뮤니티 반응이 없습니다.');
             return;
         }
 
-        const first = await readJson(index.items[0].path);
-        await openViewer(first, index, getItemViewKey(index.items[0]));
+        const first = await readJson(firstItem.path);
+        await openViewer(first, index, getItemViewKey(firstItem));
     }
 
     async function openViewer(result, index = null, viewKey = null) {
+        if (result?.generation?.reaction_mode === 'phone') {
+            await openPhoneViewer(result, index, viewKey);
+            return;
+        }
         closeViewer();
         const context = getContextSafe();
         const chatPk = result.chat_pk || ensureChatPk(context);
@@ -2260,6 +2632,270 @@ globalThis.CommunityReactionsExtension = (() => {
         state.viewerModal = modal;
         bindViewer(modal, actualIndex);
         await renderMorePosts();
+    }
+
+    async function openPhoneLibrary() {
+        await initializePhone();
+        const context = getContextSafe();
+        const chatPk = ensureChatPk(context);
+        const index = await loadIndex(chatPk);
+        const firstItem = index.items.find(item => getItemReactionMode(item) === 'phone');
+        if (!firstItem) {
+            toastr.info('저장된 휴대폰 결과가 없습니다.');
+            return;
+        }
+
+        const first = await readJson(firstItem.path);
+        await openPhoneViewer(first, index, getItemViewKey(firstItem));
+    }
+
+    async function openPhoneViewer(result, index = null, viewKey = null) {
+        await initializePhone();
+        closeViewer();
+        const context = getContextSafe();
+        const chatPk = result?.chat_pk || ensureChatPk(context);
+        const actualIndex = index || await loadIndex(chatPk);
+        const activeAppId = getPhoneAppOrDefault(String(viewKey || getResultViewKey(result)).replace(/^phone:/, '') || result?.generation?.phone_app_id || result?.generation?.site);
+        const apps = await collectPhoneViewerApps(actualIndex, result, activeAppId);
+        if (!apps.some(app => phone.hasPhoneAppContent(app))) {
+            toastr.info('표시할 휴대폰 결과가 없습니다.');
+            return;
+        }
+
+        state.activeResult = result;
+        state.activeIndex = actualIndex;
+        state.activeViewKey = `phone:${activeAppId}`;
+        state.activeCommunity = activeAppId;
+        const modal = createModal(phone.buildPhoneViewerHtml({ apps, activeAppId }), 'crx-phone-viewer-modal');
+        state.viewerModal = modal;
+        bindPhoneViewer(modal);
+    }
+
+    async function collectPhoneViewerApps(index, preferredResult = null, preferredAppId = 'googleSearch') {
+        const apps = [];
+        for (const appId of PHONE_APP_KEYS) {
+            const items = (index.items || [])
+                .filter(item => getItemReactionMode(item) === 'phone' && getItemViewKey(item) === `phone:${appId}`)
+                .slice(0, 16);
+            const results = [];
+            if (preferredResult?.generation?.reaction_mode === 'phone' && getPhoneAppOrDefault(preferredResult.generation.phone_app_id || preferredResult.generation.site) === appId) {
+                results.push(preferredResult);
+            }
+            for (const item of items) {
+                if (results.some(result => result.id === item.id)) {
+                    continue;
+                }
+                try {
+                    results.push(await readJson(item.path));
+                } catch (error) {
+                    console.warn('[Community Reactions] Failed to read phone item.', item.path, error);
+                }
+            }
+            if (results.length || appId === preferredAppId) {
+                apps.push(phone.mergePhoneResults(results, appId));
+            }
+        }
+        return apps.filter(app => phone.hasPhoneAppContent(app));
+    }
+
+    function bindPhoneViewer(modal) {
+        const device = modal.querySelector('.crx-phone-device');
+        modal.querySelector('.crx-modal-backdrop')?.addEventListener('click', () => closeViewer({ animatePhone: true }));
+        modal.querySelectorAll('.crx-phone-app-icon').forEach(button => {
+            button.addEventListener('click', () => {
+                if (button.dataset.phoneAction === 'close') {
+                    closeViewer({ animatePhone: true });
+                    return;
+                }
+                const appId = button.dataset.phoneApp || 'googleSearch';
+                device.dataset.activeApp = appId;
+                device.classList.add('is-app-open');
+                modal.querySelectorAll('.crx-phone-app').forEach(app => {
+                    const active = app.dataset.phoneApp === appId;
+                    app.classList.toggle('is-active', active);
+                    if (active) {
+                        app.classList.remove('is-search-open');
+                    }
+                });
+            });
+        });
+        modal.querySelector('#crx-phone-homebar')?.addEventListener('click', () => {
+            device.classList.remove('is-app-open');
+            modal.querySelectorAll('.crx-phone-app').forEach(app => {
+                app.classList.remove('is-active', 'is-search-open');
+            });
+        });
+        modal.querySelectorAll('.crx-phone-google-history-item').forEach(button => {
+            button.addEventListener('click', () => {
+                const app = button.closest('.crx-phone-google-app');
+                const searchId = button.dataset.searchId || '';
+                app?.querySelectorAll('.crx-phone-google-page').forEach(page => {
+                    page.classList.toggle('is-active', page.dataset.searchId === searchId);
+                });
+                app?.classList.add('is-search-open');
+            });
+        });
+        modal.querySelectorAll('.crx-phone-google-querybar').forEach(button => {
+            button.addEventListener('click', () => {
+                button.closest('.crx-phone-google-app')?.classList.remove('is-search-open');
+            });
+        });
+        bindPhonePaymentApps(modal);
+    }
+
+    function bindPhonePaymentApps(modal) {
+        modal.querySelectorAll('.crx-phone-payment-translate').forEach(button => {
+            button.addEventListener('click', () => {
+                const app = button.closest('.crx-phone-payment-app');
+                const active = app?.classList.toggle('is-translation-visible') || false;
+                button.setAttribute('aria-pressed', String(active));
+                button.textContent = active ? '원문 보기' : '번역 보기';
+            });
+        });
+
+        modal.addEventListener('click', event => {
+            const editButton = event.target.closest?.('.crx-phone-payment-edit');
+            if (!editButton || !modal.contains(editButton)) {
+                return;
+            }
+            event.preventDefault();
+            event.stopPropagation();
+            void openPhonePaymentTransactionEditor(editButton);
+        });
+
+        modal.querySelectorAll('.crx-phone-payment-scroll').forEach(scrollArea => {
+            const list = scrollArea.querySelector('.crx-phone-payment-list');
+            if (!list) {
+                return;
+            }
+            scrollArea.addEventListener('scroll', () => {
+                if (scrollArea.scrollTop + scrollArea.clientHeight < scrollArea.scrollHeight - 80) {
+                    return;
+                }
+                appendNextPhonePayments(list);
+            }, { passive: true });
+        });
+    }
+
+
+    async function openPhonePaymentTransactionEditor(button) {
+        const row = button.closest('.crx-phone-payment-transaction');
+        const resultId = button.dataset.resultId || row?.dataset.resultId || '';
+        const transactionId = button.dataset.transactionId || row?.dataset.transactionId || '';
+        const target = await getPhonePaymentTransactionEditorTarget(resultId, transactionId);
+        if (!target) {
+            toastr.error('수정할 결제 내역을 찾을 수 없습니다.');
+            return;
+        }
+
+        closePostEditor();
+        const modal = createModal(templates.buildPaymentTransactionEditorHtml(target.transaction, target.result), 'crx-post-editor-modal');
+        state.postEditorModal = modal;
+        const root = modal.querySelector('.crx-post-editor');
+        modal.querySelector('.crx-modal-backdrop').addEventListener('click', closePostEditor);
+        root.querySelector('#crx-cancel-post-edit').addEventListener('click', closePostEditor);
+        root.querySelector('#crx-save-post-edit').addEventListener('click', () => void handleSavePhonePaymentTransactionEditor(root, target));
+    }
+
+    async function getPhonePaymentTransactionEditorTarget(resultId, transactionId) {
+        const direct = await getPhonePaymentTransactionTargetFromResultId(resultId, transactionId);
+        if (direct) {
+            return direct;
+        }
+
+        const items = (state.activeIndex?.items || [])
+            .filter(item => getItemReactionMode(item) === 'phone' && getItemViewKey(item) === 'phone:paymentHistory');
+        for (const item of items) {
+            const target = await getPhonePaymentTransactionTargetFromResultId(item.id, transactionId);
+            if (target) {
+                return target;
+            }
+        }
+        return null;
+    }
+
+    async function getPhonePaymentTransactionTargetFromResultId(resultId, transactionId) {
+        if (!resultId || !transactionId) {
+            return null;
+        }
+        let result = state.activeResult?.id === resultId ? state.activeResult : null;
+        if (!result) {
+            const item = (state.activeIndex?.items || []).find(entry => entry.id === resultId);
+            if (!item?.path) {
+                return null;
+            }
+            result = await readJson(item.path);
+        }
+        const transactions = Array.isArray(result?.phone?.payment?.transactions) ? result.phone.payment.transactions : [];
+        const transactionIndex = transactions.findIndex(transaction => String(transaction.id || '') === String(transactionId));
+        if (transactionIndex < 0) {
+            return null;
+        }
+        return { result, transaction: transactions[transactionIndex], transactionIndex };
+    }
+
+    function applyPhonePaymentTransactionEditorValues(root, transaction) {
+        transaction.description = readPostEditorString(root, 'crx-edit-payment-description') || transaction.description || '';
+        transaction.detail_note = readPostEditorText(root, 'crx-edit-payment-detail-note').trim();
+        transaction.amount = readPhonePaymentEditorAmount(root, 'crx-edit-payment-amount', transaction.amount);
+        transaction.display_amount = readPostEditorString(root, 'crx-edit-payment-display-amount') || String(transaction.amount || '');
+        transaction.time_label = readPostEditorString(root, 'crx-edit-payment-time-label');
+        const occurredAt = readPostEditorString(root, 'crx-edit-payment-occurred-at');
+        if (occurredAt) {
+            transaction.occurred_at = occurredAt;
+        }
+        transaction.description_translation = readPostEditorString(root, 'crx-edit-payment-description-translation');
+        transaction.detail_note_translation = readPostEditorText(root, 'crx-edit-payment-detail-translation').trim();
+    }
+
+    function readPhonePaymentEditorAmount(root, id, fallback = 0) {
+        const text = readPostEditorString(root, id).replace(/[^0-9.-]/g, '');
+        const amount = Number(text);
+        return Number.isFinite(amount) ? amount : Number(fallback) || 0;
+    }
+
+    async function handleSavePhonePaymentTransactionEditor(root, target) {
+        const button = root.querySelector('#crx-save-post-edit');
+        try {
+            button.disabled = true;
+            applyPhonePaymentTransactionEditorValues(root, target.transaction);
+            if (target.result?.phone?.payment) {
+                const transactions = Array.isArray(target.result.phone.payment.transactions) ? target.result.phone.payment.transactions : [];
+                target.result.phone.payment.has_translation = transactions.some(transaction => Boolean(transaction.description_translation || transaction.detail_note_translation));
+            }
+            target.result.updated_at = new Date().toISOString();
+            await updateResult(target.result);
+            const refreshedIndex = await loadIndex(target.result.chat_pk);
+            closePostEditor();
+            await openPhoneViewer(target.result, refreshedIndex, 'phone:paymentHistory');
+            toastr.success('저장했습니다.');
+        } catch (error) {
+            toastr.error(error?.message || '결제 내역 저장에 실패했습니다.');
+        } finally {
+            button.disabled = false;
+        }
+    }
+
+    function appendNextPhonePayments(list) {
+        let transactions = [];
+        try {
+            transactions = JSON.parse(decodeURIComponent(list.dataset.transactions || '%5B%5D'));
+        } catch {
+            transactions = [];
+        }
+
+        const pageSize = clampInteger(list.dataset.pageSize, 1, 50, 10);
+        const rendered = clampInteger(list.dataset.rendered, 0, transactions.length, 0);
+        const nextItems = transactions.slice(rendered, rendered + pageSize);
+        if (!nextItems.length) {
+            list.closest('.crx-phone-payment-card')?.querySelector('.crx-phone-payment-more')?.classList.add('is-hidden');
+            return;
+        }
+
+        list.insertAdjacentHTML('beforeend', phone.renderPaymentTransactionBatch(nextItems));
+        const nextRendered = rendered + nextItems.length;
+        list.dataset.rendered = String(nextRendered);
+        list.closest('.crx-phone-payment-card')?.querySelector('.crx-phone-payment-more')?.classList.toggle('is-hidden', nextRendered >= transactions.length);
     }
 
     function bindViewer(modal, index) {
@@ -2374,7 +3010,7 @@ globalThis.CommunityReactionsExtension = (() => {
     function openPostEditor(postKey, targetType = 'post', replyId = '') {
         const target = getPostEditorTarget(postKey, targetType, replyId);
         if (!target) {
-            toastr.error('\uC218\uC815\uD560 \uAC8C\uC2DC\uAE00\uC744 \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.');
+            toastr.error('수정할 게시글을 찾을 수 없습니다.');
             return;
         }
 
@@ -2515,9 +3151,9 @@ globalThis.CommunityReactionsExtension = (() => {
             }
             rerenderEditedCommunityPost(target.entry);
             closePostEditor();
-            toastr.success('\uC800\uC7A5\uD588\uC2B5\uB2C8\uB2E4.');
+            toastr.success('저장했습니다.');
         } catch (error) {
-            toastr.error(error?.message || '\uAC8C\uC2DC\uAE00 \uC800\uC7A5\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.');
+            toastr.error(error?.message || '게시글 저장에 실패했습니다.');
         } finally {
             button.disabled = false;
         }
@@ -2542,6 +3178,9 @@ globalThis.CommunityReactionsExtension = (() => {
     }
 
     function getItemReactionMode(item) {
+        if (item?.reaction_mode === 'phone' || item?.phone_app_id) {
+            return 'phone';
+        }
         return item?.reaction_mode === 'npc' || (item?.topic_id && !item?.reader_community_id) ? 'npc' : 'reader';
     }
 
@@ -2549,7 +3188,11 @@ globalThis.CommunityReactionsExtension = (() => {
         if (!item) {
             return '';
         }
-        if (getItemReactionMode(item) === 'npc' && item.topic_id) {
+        const mode = getItemReactionMode(item);
+        if (mode === 'phone') {
+            return `phone:${getPhoneAppOrDefault(item.phone_app_id || item.site)}`;
+        }
+        if (mode === 'npc' && item.topic_id) {
             return `npc:${item.topic_id}`;
         }
         if (item.reader_community_id) {
@@ -2563,6 +3206,9 @@ globalThis.CommunityReactionsExtension = (() => {
             return '';
         }
         const generation = result.generation || {};
+        if (generation.reaction_mode === 'phone' || generation.phone_app_id) {
+            return `phone:${getPhoneAppOrDefault(generation.phone_app_id || generation.site)}`;
+        }
         if ((generation.reaction_mode === 'npc' || generation.topic_id) && generation.topic_id) {
             return `npc:${generation.topic_id}`;
         }
@@ -2573,6 +3219,10 @@ globalThis.CommunityReactionsExtension = (() => {
     }
 
     function getViewLabel(index, key) {
+        if (String(key || '').startsWith('phone:')) {
+            const appId = String(key).slice('phone:'.length);
+            return PHONE_APP_PRESETS[appId]?.label || '어플리케이션';
+        }
         if (String(key || '').startsWith('npc:')) {
             const topicId = String(key).slice(4);
             const topic = getNpcTopic(index, topicId);
@@ -2599,6 +3249,9 @@ globalThis.CommunityReactionsExtension = (() => {
         const seen = new Set();
         const options = [];
         for (const item of index.items) {
+            if (getItemReactionMode(item) === 'phone') {
+                continue;
+            }
             const key = getItemViewKey(item);
             if (!key || seen.has(key)) {
                 continue;
@@ -2919,6 +3572,7 @@ globalThis.CommunityReactionsExtension = (() => {
             await initializeStorage();
             await initializeTemplates();
             await initializePrompts();
+            await initializePhone();
         } catch (error) {
             console.error(`[${MODULE_NAME}] Failed to initialize split modules. The menu button will retry on click.`, error);
         }

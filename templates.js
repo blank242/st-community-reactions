@@ -9,6 +9,8 @@ globalThis.CommunityReactionsTemplates = (() => {
             LANGUAGE_PRESETS,
             MEDIA_TYPES,
             NPC_SITE_KEYS,
+            PHONE_APP_KEYS,
+            PHONE_APP_PRESETS,
             REACTION_MODES,
             READER_SITE_KEYS,
             SITE_PRESETS,
@@ -40,6 +42,10 @@ globalThis.CommunityReactionsTemplates = (() => {
             return siteKeys.map(value => `<option value="${escapeHtml(`${valuePrefix}${value}`)}" data-site="${escapeHtml(value)}">${escapeHtml(SITE_PRESETS[value].label)}</option>`).join('');
         }
 
+        function renderPhoneAppOptions() {
+            return PHONE_APP_KEYS.map(value => `<option value="${escapeHtml(value)}">${escapeHtml(PHONE_APP_PRESETS[value].label)}</option>`).join('');
+        }
+
         function getComposerOptions(context, index) {
             const siteOptions = renderSiteOptions(READER_SITE_KEYS, 'site:');
             const savedReaderOptions = (index.reader_communities || []).map(community => `<option value="custom:${escapeHtml(community.id)}" data-id="${escapeHtml(community.id)}" data-site="${escapeHtml(community.site)}">${escapeHtml(community.title)}</option>`).join('');
@@ -51,6 +57,7 @@ globalThis.CommunityReactionsTemplates = (() => {
                 readerCommunitySiteOptions: renderSiteOptions(READER_SITE_KEYS),
                 topicOptions: `${savedTopicOptions || '<option value="">등록된 카테고리 없음</option>'}<option value="${ADD_OPTION_VALUE}">+ 추가하기</option>`,
                 npcSiteOptions: renderSiteOptions(NPC_SITE_KEYS),
+                phoneAppOptions: renderPhoneAppOptions(),
                 countryOptions: renderOptions(Object.entries(COUNTRY_PRESETS), country => country.label),
                 langOptions: renderOptions(Object.entries(LANGUAGE_PRESETS)),
                 mediaOptions: renderOptions(Object.entries(MEDIA_TYPES)),
@@ -96,9 +103,17 @@ globalThis.CommunityReactionsTemplates = (() => {
         </div>
         <div id="crx-reader-community-section" class="crx-section">
             <label id="crx-reader-community-row" class="crx-field-wrap">
-                <span class="crx-label">커뮤니티</span>
+                <span id="crx-reader-community-label" class="crx-label">커뮤니티</span>
                 <select id="crx-reader-community" class="crx-field">
                     ${options.readerCommunityOptions}
+                </select>
+            </label>
+        </div>
+        <div id="crx-phone-app-section" class="crx-section is-hidden">
+            <label id="crx-phone-app-row" class="crx-field-wrap">
+                <span class="crx-label">어플리케이션</span>
+                <select id="crx-phone-app" class="crx-field">
+                    ${options.phoneAppOptions}
                 </select>
             </label>
         </div>
@@ -158,7 +173,7 @@ globalThis.CommunityReactionsTemplates = (() => {
         function renderMessageRangeSection(range) {
             return `
         <div class="crx-section crx-message-range">
-            <span class="crx-label">반응을 확인할 메시지는</span>
+            <span id="crx-message-range-label" class="crx-label">반응을 확인할 메시지는</span>
             <label class="crx-inline-field">
                 <input id="crx-range-start" class="crx-field" type="number" min="1" max="${range.max}" value="${range.start}">
                 <span>부터</span>
@@ -178,10 +193,14 @@ globalThis.CommunityReactionsTemplates = (() => {
         <div class="crx-section crx-options-grid">
             <label class="crx-field-wrap">
                 <span class="crx-label crx-label-with-info">
-                    <span>국가</span>
+                    <span id="crx-country-label">국가</span>
                     ${renderInfoIcon('국가', '해당 커뮤니티 유저들의 국적. 반응은 국가에 맞는 말투와 분위기로 생성됩니다.')}
                 </span>
                 <select id="crx-country" class="crx-field">${options.countryOptions}</select>
+            </label>
+            <label id="crx-custom-country-row" class="crx-field-wrap is-hidden">
+                <span class="crx-label">국적 직접 입력</span>
+                <input id="crx-custom-country" class="crx-field" type="text" maxlength="80" placeholder="예: 프랑스, 브라질, 미국">
             </label>
             <label class="crx-field-wrap">
                 <span class="crx-label">출력 언어</span>
@@ -207,7 +226,7 @@ globalThis.CommunityReactionsTemplates = (() => {
             return `
         <div class="crx-section">
             <div class="crx-field-wrap crx-range-field">
-                <span class="crx-label">게시글 수</span>
+                <span id="crx-post-count-label" class="crx-label">게시글 수</span>
                 <span id="crx-post-count-value" class="crx-muted"></span>
                 <input id="crx-post-count" class="crx-range" type="range">
             </div>
@@ -488,6 +507,52 @@ globalThis.CommunityReactionsTemplates = (() => {
         <div class="crx-footer">
             <button id="crx-cancel-post-edit" class="crx-secondary-button" type="button">취소</button>
             <button id="crx-save-post-edit" class="crx-primary-button" type="button">저장하기</button>
+        </div>
+    `;
+        }
+
+
+        function buildPaymentTransactionEditorHtml(transaction = {}) {
+            return `
+        <div class="crx-popup crx-post-editor crx-payment-transaction-editor">
+            <div class="crx-sheet">
+                <div class="crx-post-editor-section-title">결제 내역 수정</div>
+                <div class="crx-section">
+                    <label class="crx-field-wrap">
+                        <span class="crx-label">결제처</span>
+                        <input id="crx-edit-payment-description" class="crx-field" type="text" value="${escapeHtml(transaction?.description || '')}">
+                    </label>
+                    <label class="crx-field-wrap">
+                        <span class="crx-label">결제 메모</span>
+                        <textarea id="crx-edit-payment-detail-note" class="crx-field crx-textarea">${escapeHtml(transaction?.detail_note || '')}</textarea>
+                    </label>
+                    <label class="crx-field-wrap">
+                        <span class="crx-label">금액 숫자</span>
+                        <input id="crx-edit-payment-amount" class="crx-field" type="text" value="${escapeHtml(transaction?.amount ?? '')}">
+                    </label>
+                    <label class="crx-field-wrap">
+                        <span class="crx-label">표시 금액</span>
+                        <input id="crx-edit-payment-display-amount" class="crx-field" type="text" value="${escapeHtml(transaction?.display_amount || '')}">
+                    </label>
+                    <label class="crx-field-wrap">
+                        <span class="crx-label">표시 시간</span>
+                        <input id="crx-edit-payment-time-label" class="crx-field" type="text" value="${escapeHtml(transaction?.time_label || '')}">
+                    </label>
+                    <label class="crx-field-wrap">
+                        <span class="crx-label">실제 시간</span>
+                        <input id="crx-edit-payment-occurred-at" class="crx-field" type="text" value="${escapeHtml(transaction?.occurred_at || '')}">
+                    </label>
+                    <label class="crx-field-wrap">
+                        <span class="crx-label">번역 결제처</span>
+                        <input id="crx-edit-payment-description-translation" class="crx-field" type="text" value="${escapeHtml(transaction?.description_translation || '')}">
+                    </label>
+                    <label class="crx-field-wrap">
+                        <span class="crx-label">번역 메모</span>
+                        <textarea id="crx-edit-payment-detail-translation" class="crx-field crx-textarea">${escapeHtml(transaction?.detail_note_translation || '')}</textarea>
+                    </label>
+                </div>
+            </div>
+            ${renderPostEditorFooter()}
         </div>
     `;
         }
@@ -1135,6 +1200,7 @@ globalThis.CommunityReactionsTemplates = (() => {
 
         return {
             buildComposerHtml,
+            buildPaymentTransactionEditorHtml,
             buildPostEditorHtml,
             buildViewerHtml,
             renderDaumListItem,

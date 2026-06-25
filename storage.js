@@ -42,6 +42,10 @@ function normalizeReaderSiteOptionsMap(value) {
     return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 }
 
+function normalizePhoneAppOptionsMap(value) {
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
 function withDefaultNpcTopics(index) {
     const npcTopics = Array.isArray(index?.npc_topics) ? index.npc_topics : [];
     const normalizedTopics = npcTopics.map(topic => {
@@ -114,10 +118,14 @@ function create(deps) {
     }
 
     function itemFileName(chatPk, generation, resultId, createdAt) {
-        const mode = generation?.reaction_mode === 'npc' ? 'npc' : 'reader';
-        const target = mode === 'npc'
-            ? sanitizeFilePart(generation?.topic_id || generation?.site || 'topic')
-            : sanitizeFilePart(generation?.reader_community_id || generation?.site || 'site');
+        const mode = generation?.reaction_mode === 'phone'
+            ? 'phone'
+            : generation?.reaction_mode === 'npc' ? 'npc' : 'reader';
+        const target = mode === 'phone'
+            ? sanitizeFilePart(generation?.phone_app_id || generation?.site || 'app')
+            : mode === 'npc'
+                ? sanitizeFilePart(generation?.topic_id || generation?.site || 'topic')
+                : sanitizeFilePart(generation?.reader_community_id || generation?.site || 'site');
         return `${FILE_PREFIX}__item__${sanitizeFilePart(chatPk)}__${mode}__${target}__${formatPathDatePart(createdAt)}__${sanitizeFilePart(resultId)}.json`;
     }
 
@@ -137,7 +145,18 @@ function create(deps) {
             npc_topics: getDefaultNpcTopics(),
             reader_communities: [],
             reader_site_options: {},
+            phone_app_options: {},
         };
+    }
+
+    function getPhonePayloadCount(result) {
+        if (Array.isArray(result?.phone?.searches)) {
+            return result.phone.searches.length;
+        }
+        if (Array.isArray(result?.phone?.payment?.transactions)) {
+            return result.phone.payment.transactions.length;
+        }
+        return 0;
     }
 
     async function uploadJson(fileName, payload) {
@@ -194,6 +213,7 @@ function create(deps) {
                 index.reader_communities = [];
             }
             index.reader_site_options = normalizeReaderSiteOptionsMap(index.reader_site_options);
+            index.phone_app_options = normalizePhoneAppOptionsMap(index.phone_app_options);
             const indexWithDefaults = withDefaultNpcTopics(index);
             indexWithDefaults.items.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
             return indexWithDefaults;
@@ -209,6 +229,7 @@ function create(deps) {
             ...index,
             reader_communities: Array.isArray(index?.reader_communities) ? index.reader_communities : [],
             reader_site_options: normalizeReaderSiteOptionsMap(index?.reader_site_options),
+            phone_app_options: normalizePhoneAppOptionsMap(index?.phone_app_options),
             items: Array.isArray(index?.items) ? index.items : [],
         });
         await uploadJson(indexFileName(chatPk), normalizedIndex);
@@ -223,19 +244,26 @@ function create(deps) {
             id: result.id,
             path: filePath(itemName),
             reaction_mode: result.generation.reaction_mode || 'reader',
+            phone_app_id: result.generation.phone_app_id || '',
+            phone_app_label: result.generation.phone_app_label || '',
             topic_id: result.generation.topic_id || '',
             topic_title: result.generation.topic_title || '',
             preserve_profile_identity: Boolean(result.generation.preserve_profile_identity),
             reader_community_id: result.generation.reader_community_id || '',
             reader_community_title: result.generation.reader_community_title || '',
             site: result.generation.site,
+            selected_site_country: result.generation.selected_site_country || result.generation.site_country,
             site_country: result.generation.site_country,
+            custom_site_country: result.generation.custom_site_country || '',
+            site_country_label: result.generation.site_country_label || '',
             output_language: result.generation.output_language,
             preserve_original: Boolean(result.generation.preserve_original),
             has_anti: Boolean(result.generation.has_anti),
             media_type: result.generation.media_type,
             created_at: result.created_at,
-            post_count: result.posts.length,
+            post_count: result.generation.reaction_mode === 'phone'
+                ? getPhonePayloadCount(result)
+                : result.posts.length,
         };
 
         index.items = [item, ...index.items.filter(x => x.id !== result.id)]
@@ -250,7 +278,9 @@ function create(deps) {
         await uploadJson(itemName, result);
         if (target) {
             target.path = filePath(itemName);
-            target.post_count = result.posts.length;
+            target.post_count = result.generation?.reaction_mode === 'phone'
+                ? getPhonePayloadCount(result)
+                : result.posts.length;
             await saveIndex(index, result.chat_pk);
         }
     }
@@ -270,13 +300,18 @@ function create(deps) {
             },
             generation: {
                 reaction_mode: input.reaction_mode || 'reader',
+                phone_app_id: input.phone_app_id || '',
+                phone_app_label: input.phone_app_label || '',
                 topic_id: input.topic_id || '',
                 topic_title: input.topic_title || '',
                 preserve_profile_identity: Boolean(input.preserve_profile_identity),
                 reader_community_id: input.reader_community_id || '',
                 reader_community_title: input.reader_community_title || '',
                 site: input.site,
+                selected_site_country: input.selected_site_country || input.site_country,
                 site_country: input.site_country,
+                custom_site_country: input.custom_site_country || '',
+                site_country_label: input.site_country_label || '',
                 output_language: input.output_language,
                 preserve_original: Boolean(input.preserve_original),
                 has_anti: Boolean(input.has_anti),

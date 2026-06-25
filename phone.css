@@ -1,0 +1,560 @@
+.crx-phone-viewer-modal .crx-popup.is-phone-mode {
+    transform-origin: center center;
+    animation: phone-ani-in 0.5s ease-in-out both;
+    will-change: transform, opacity;
+}
+
+.crx-phone-viewer-modal.is-phone-closing {
+    pointer-events: none;
+}
+
+.crx-phone-viewer-modal .crx-popup.is-phone-mode.is-phone-closing {
+    animation: phone-ani 0.5s ease-in-out both;
+}
+
+.crx-phone-viewer-modal.is-phone-closing .crx-modal-backdrop {
+    opacity: 0;
+    transition: opacity 0.5s ease-in-out;
+}
+
+@keyframes phone-ani-in {
+    0% {
+        transform: perspective(800px) rotateX(30deg) rotateY(-20deg) translateY(149px) translateZ(-100px);
+        opacity: 0;
+    }
+    20% {
+        opacity: 1;
+    }
+    100% {
+        transform: perspective(800px) rotateX(0deg) rotateY(0deg) translateY(0px) translateZ(0);
+        opacity: 1;
+    }
+}
+
+@keyframes phone-ani {
+    0% {
+        transform: perspective(800px) rotateX(0deg) rotateY(0deg) translateY(0px) translateZ(0);
+        opacity: 1;
+    }
+    80% {
+        opacity: 1;
+    }
+    100% {
+        transform: perspective(800px) rotateX(30deg) rotateY(-20deg) translateY(149px) translateZ(-100px);
+        opacity: 0;
+    }
+}
+
+.crx-phone-viewer-modal {
+    padding: 12px;
+    --phone-radius: 60px;
+    --bezel: 8px;
+    --phone-app-radius: 16px;
+}
+
+/* iPhone frame */
+.crx-phone-viewer-modal .crx-modal-backdrop {
+    background: rgba(0, 0, 0, 0.72);
+}
+
+.crx-phone-viewer {
+    width: min(390px, calc(100vw - 24px));
+    max-width: none;
+    height: min(812px, calc(100dvh - 24px));
+    max-height: none;
+    background: #08090c;
+    box-shadow: 0 30px 90px rgba(0, 0, 0, 0.46);
+    border-radius: var(--phone-radius);
+}
+
+.crx-phone-device {
+    position: relative;
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: var(--bezel);
+    color: #111827;
+    font-family: var(--crx-font-main);
+}
+
+.crx-phone-screen {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    border-radius: calc(var(--phone-radius) - var(--bezel));
+    background-color: #dceffd;
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.04)), url('./assets/phone-wallpaper.webp');
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
+}
+
+.crx-phone-status {
+    position: absolute;
+    top: 22px;
+    left: 52px;
+    right: 52px;
+    z-index: 8;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    color: #ffffff;
+    font-size: 0.76rem;
+    font-weight: 800;
+    pointer-events: none;
+}
+
+.crx-phone-status span:last-child {
+    display: inline-flex;
+    justify-content: flex-end;
+    gap: 10px;
+    font-size: 11px;
+}
+
+.crx-phone-dynamic-island {
+    width: 120px;
+    height: 32px;
+    border-radius: 999px;
+    background: #07080a;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+
+.crx-phone-device.is-app-open{
+    &[data-active-app="googleSearch"],
+    &[data-active-app="paymentHistory"] {
+        .crx-phone-status {
+            color: #3c4043;
+        }
+        .crx-phone-homebar {
+            background-color: #3c4043;
+        }
+    }
+
+}
+
+.crx-phone-home,
+.crx-phone-app-stack,
+.crx-phone-app {
+    position: absolute;
+    inset: 0;
+}
+
+.crx-phone-home {
+    padding: 74px 30px 118px;
+    transition: transform 180ms ease, opacity 180ms ease;
+}
+
+.crx-phone-device.is-app-open .crx-phone-home {
+    opacity: 0;
+    pointer-events: none;
+    transform: scale(0.96);
+}
+
+.crx-phone-home-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 68px));
+    grid-template-rows: repeat(7, minmax(0, 80px));
+    height: 100%;
+    /* gap: 12px; */
+    align-items: stretch;
+    justify-content: space-between;
+    align-content: space-between;
+    justify-items: stretch;
+}
+
+.crx-phone-app-bar {
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    bottom: 24px;
+    z-index: 2;
+    display: grid;
+    grid-template-columns: repeat(4, 58px);
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 14px;
+    border-radius: 32px;
+    border: 1px solid rgba(255, 255, 255, 0.32);
+    background: rgba(255, 255, 255, 0.24);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 16px 36px rgba(15, 23, 42, 0.14);
+    -webkit-backdrop-filter: blur(24px) saturate(1.35);
+    backdrop-filter: blur(24px) saturate(1.35);
+}
+
+.crx-phone-app-bar .crx-phone-app-icon {
+    width: 58px;
+    height: 58px;
+    padding: 0;
+    gap: 0;
+    justify-self: center;
+    text-shadow: none;
+}
+
+.crx-phone-widget {
+    grid-column: span 2;
+    grid-row: span 2;
+    display: grid;
+    grid-template-rows: 1fr auto;
+    gap: 6px;
+    border: 0;
+    background: transparent;
+    color: #ffffff;
+    font-size: 0.72rem;
+}
+
+.crx-phone-widget > span {
+    text-align: center;
+}
+
+.crx-weather-widget {
+    display: flex;
+    border-radius: calc(var(--phone-app-radius) * 1.4);
+    overflow: hidden;
+    background: linear-gradient(#1c4375, #4e79ad);
+    color: #ffffff;
+    padding: 12px 16px;
+    flex-direction: column;
+}
+
+.crx-weather-widget-city {
+    font-size: 16px;
+    font-weight: 300;
+    line-height: 1.2;
+}
+
+.crx-weather-widget-temperature {
+    font-size: 38px;
+    font-weight: 200;
+    line-height: 1;
+}
+
+.crx-weather-widget-details {
+    margin-top: auto;
+    font-size: 14px;
+    font-weight: 300;
+    line-height: 1.4;
+}
+
+.crx-phone-app-icon {
+    display: grid;
+    justify-items: center;
+    gap: 6px;
+    border: 0;
+    background: transparent;
+    color: #ffffff;
+    font: inherit;
+    font-size: 0.72rem;
+    cursor: pointer;
+    grid-row: 3 / 4;
+}
+.crx-phone-app-icon-pic {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 58px;
+    height: 58px;
+    border-radius: var(--phone-app-radius);
+    overflow: hidden;
+    color: #ffffff;
+    font-size: 28px;
+    /* line-height: 1; */
+    background: #f3f4f6;
+    box-shadow: 0 12px 22px rgba(15, 23, 42, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    isolation: isolate;
+}
+
+.crx-phone-safari-icon {
+    background: url('assets/safari.png') #ffffff no-repeat center / 96%;
+}
+
+.crx-phone-call-icon {
+    background: url('assets/phone.webp') #ffffff no-repeat center / 100%;
+}
+
+.crx-phone-message-icon {
+    background: url('assets/messages.webp') #ffffff no-repeat center / 100%;
+}
+
+.crx-phone-music-icon {
+    background: url('assets/apple-music.webp') #ffffff no-repeat center / 100%;
+}
+
+.crx-phone-generic-icon {
+    color: #374151;
+    background: linear-gradient(180deg, #ffffff 0%, #e5e7eb 100%);
+}
+
+.crx-phone-sillytavern-icon {
+    background: url('/img/logo.png') #1f2937 no-repeat center / 78%;
+}
+
+.crx-phone-generic-icon i {
+    filter: none;
+}
+
+.crx-phone-app-stack {
+    pointer-events: none;
+}
+
+.crx-phone-app {
+    overflow: hidden;
+    background: #ffffff;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(18px) scale(0.98);
+    transition: transform 190ms ease, opacity 190ms ease;
+}
+
+.crx-phone-device.is-app-open .crx-phone-app.is-active {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0) scale(1);
+}
+
+.crx-phone-homebar {
+    position: absolute;
+    left: 50%;
+    bottom: 20px;
+    z-index: 9;
+    width: 132px;
+    height: 5px;
+    border: 0;
+    border-radius: 999px;
+    background: #ffffffcf;
+    cursor: pointer;
+    transform: translateX(-50%);
+}
+
+/* Google search history and result app */
+.crx-phone-empty {
+    padding: 96px 20px 20px;
+    color: #6b7280;
+    font-size: 0.9rem;
+    text-align: center;
+}
+
+.crx-phone-google-app {
+    color: #202124;
+}
+
+.crx-phone-google-history,
+.crx-phone-google-results {
+    position: absolute;
+    inset: 0;
+    overflow-y: auto;
+    background: #ffffff;
+    transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.crx-phone-google-history {
+    z-index: 2;
+    padding-top: 58px;
+}
+
+.crx-phone-google-results {
+    z-index: 1;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(24px);
+}
+
+.crx-phone-google-app.is-search-open .crx-phone-google-history {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-24px);
+}
+
+.crx-phone-google-app.is-search-open .crx-phone-google-results {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(0);
+}
+
+.crx-phone-google-historybar {
+    display: grid;
+    grid-template-columns: 42px 1fr 42px;
+    align-items: center;
+    min-height: 2rem;
+    padding: 0 14px;
+    border-bottom: 1px solid #dadce0;
+    color: #5f6368;
+    font-size: 1rem;
+}
+
+.crx-phone-google-historybar button {
+    border: 0;
+    background: transparent;
+    color: #5f6368;
+    font: inherit;
+    cursor: pointer;
+}
+
+.crx-phone-google-cursor {
+    width: 1px;
+    height: 1rem;
+    background: #202124;
+}
+
+.crx-phone-google-history-list {
+    display: grid;
+}
+
+.crx-phone-google-history-item {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr) 38px;
+    align-items: center;
+    gap: 10px;
+    min-height: 3rem;
+    border: 0;
+    background: #ffffff;
+    color: #202124;
+    font: inherit;
+    font-size: 1rem;
+    font-weight: 800;
+    line-height: 1.3;
+    text-align: left;
+    cursor: pointer;
+}
+
+.crx-phone-google-history-item .fa-clock {
+    color: #9aa0a6;
+    font-size: 1rem;
+    justify-self: center;
+}
+
+.crx-phone-google-history-item .fa-xmark {
+    color: #6f7379;
+    justify-self: center;
+}
+
+.crx-phone-google-page {
+    display: none;
+    min-height: 100%;
+    padding: 62px 14px 30px;
+    background: #ffffff;
+}
+
+.crx-phone-google-page.is-active {
+    display: block;
+}
+
+.crx-phone-google-querybar {
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr) 22px;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 44px;
+    border: 1px solid #dadce0;
+    border-radius: 999px;
+    background: #ffffff;
+    color: #3c4043;
+    padding: 0 13px;
+    font: inherit;
+    text-align: left;
+    box-shadow: 0 1px 6px rgba(32, 33, 36, 0.12);
+    cursor: pointer;
+    margin: 22px 0 18px;
+}
+
+.crx-phone-google-querybar span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.crx-phone-google-logo {
+    display: flex;
+    justify-content: center;
+    gap: 0;
+    font-size: 2.35rem;
+    font-family: Arial, sans-serif;
+    font-weight: 700;
+    letter-spacing: 0;
+}
+
+.crx-phone-google-logo span:nth-child(1),
+.crx-phone-google-logo span:nth-child(4) {
+    color: #4285f4;
+}
+
+.crx-phone-google-logo span:nth-child(2),
+.crx-phone-google-logo span:nth-child(6) {
+    color: #ea4335;
+}
+
+.crx-phone-google-logo span:nth-child(3) {
+    color: #fbbc05;
+}
+
+.crx-phone-google-logo span:nth-child(5) {
+    color: #34a853;
+}
+
+.crx-phone-google-tabs {
+    display: flex;
+    gap: 18px;
+    overflow-x: auto;
+    border-bottom: 1px solid #e8eaed;
+    color: #5f6368;
+    font-size: 0.82rem;
+    white-space: nowrap;
+}
+
+.crx-phone-google-tabs span {
+    padding: 0 0 10px;
+}
+
+.crx-phone-google-tabs .is-active {
+    border-bottom: 3px solid #1a73e8;
+    color: #1a73e8;
+}
+
+.crx-phone-google-result-list {
+    display: grid;
+    gap: 18px;
+    padding: 14px 0 24px;
+}
+
+.crx-phone-google-result {
+    display: grid;
+    gap: 4px;
+    color: inherit;
+    text-decoration: none;
+}
+
+.crx-phone-google-result-host {
+    color: #3c4043;
+    font-size: 0.78rem;
+}
+
+.crx-phone-google-result-title {
+    color: #1a0dab;
+    font-size: 1.02rem;
+    line-height: 1.25;
+}
+
+.crx-phone-google-result-snippet {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    white-space: pre-line;
+    overflow: hidden;
+    color: #4d5156;
+    font-size: 0.84rem;
+    line-height: 1.42;
+}
+
+@media (max-width: 420px) {
+    .crx-phone-viewer-modal {
+        padding: 6px;
+    }
+
+    .crx-phone-viewer {
+        width: min(390px, calc(100vw - 12px));
+        height: min(812px, calc(100dvh - 12px));
+    }
+}
