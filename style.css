@@ -384,6 +384,10 @@
     font-weight: 700;
 }
 
+.crx-footer button {
+    flex: 1 0 50%;
+}
+
 .crx-primary-button {
     background: var(--crx-primary);
     color: var(--crx-white);

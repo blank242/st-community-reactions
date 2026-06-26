@@ -21,7 +21,7 @@ globalThis.CommunityReactionsPhonePayment = (() => {
             custom: { code: 'LOCAL', symbol: '', fractionDigits: 0 },
         });
         const PAYMENT_BANKS = Object.freeze({
-            bankOfAmerica: { label: 'Bank of America', shortLabel: 'BofA' },
+            bankOfAmerica: { label: 'BofA', shortLabel: 'BofA' },
             kbKookmin: { label: 'KB국민은행', shortLabel: 'KB' },
         });
 
@@ -97,7 +97,7 @@ globalThis.CommunityReactionsPhonePayment = (() => {
             }
 
             const rawAmount = parseMoneyNumber(transaction.amount ?? transaction.value ?? transaction.price ?? transaction.display_amount);
-            const amount = Number.isFinite(rawAmount) && rawAmount !== 0 ? (rawAmount > 0 ? -rawAmount : rawAmount) : 0;
+            const amount = Number.isFinite(rawAmount) ? rawAmount : 0;
             const occurredAt = normalizePaymentDate(transaction.occurred_at || transaction.created_at || transaction.time || transaction.date, index);
             const translation = String(transaction.description_translation || transaction.translation || transaction.translated_description || '').trim();
             const detailNote = String(transaction.detail_note || transaction.detail || transaction.memo || transaction.note || transaction.reason || '').trim();
@@ -110,7 +110,7 @@ globalThis.CommunityReactionsPhonePayment = (() => {
                 detail_note: detailNote,
                 detail_note_translation: detailNoteTranslation,
                 amount,
-                display_amount: normalizeMoneyDisplay(transaction.display_amount || transaction.display, amount, currency),
+                display_amount: normalizeTransactionMoneyDisplay(transaction.display_amount || transaction.display, amount, currency),
                 occurred_at: occurredAt,
                 time_label: String(transaction.time_label || transaction.label || '').trim() || formatPaymentTime(occurredAt, input),
             };
@@ -169,6 +169,23 @@ globalThis.CommunityReactionsPhonePayment = (() => {
             return display || formatMoney(amount, currency);
         }
 
+        function normalizeTransactionMoneyDisplay(value, amount, currency) {
+            const display = String(value || '').trim();
+            if (usesPlainWonDisplay(currency)) {
+                return formatMoney(amount, currency, { signedPositive: true });
+            }
+            if (!display) {
+                return formatMoney(amount, currency, { signedPositive: true });
+            }
+            if (amount > 0) {
+                return display.startsWith('+') ? display : '+' + display.replace(/^-+/, '');
+            }
+            if (amount < 0) {
+                return display.startsWith('-') ? display : '-' + display.replace(/^\++/, '');
+            }
+            return display;
+        }
+
         function usesPlainWonDisplay(currency) {
             return String(currency?.code || '').toUpperCase() === 'KRW';
         }
@@ -185,9 +202,9 @@ globalThis.CommunityReactionsPhonePayment = (() => {
             return Number(text);
         }
 
-        function formatMoney(amount, currency) {
+        function formatMoney(amount, currency, options = {}) {
             const number = Number.isFinite(amount) ? amount : 0;
-            const sign = number < 0 ? '-' : '';
+            const sign = number < 0 ? '-' : options.signedPositive && number > 0 ? '+' : '';
             const formatted = Math.abs(number).toLocaleString('en-US', {
                 minimumFractionDigits: currency.fractionDigits,
                 maximumFractionDigits: currency.fractionDigits,

@@ -512,6 +512,32 @@ globalThis.CommunityReactionsTemplates = (() => {
         }
 
 
+
+        function buildGoogleResultEditorHtml(result = {}) {
+            return `
+        <div class="crx-popup crx-post-editor crx-google-result-editor">
+            <div class="crx-sheet">
+                <div class="crx-post-editor-section-title">검색 결과 수정</div>
+                <div class="crx-section">
+                    <label class="crx-field-wrap">
+                        <span class="crx-label">제목</span>
+                        <input id="crx-edit-google-title" class="crx-field" type="text" value="${escapeHtml(result?.title || '')}">
+                    </label>
+                    <label class="crx-field-wrap">
+                        <span class="crx-label">URL</span>
+                        <input id="crx-edit-google-url" class="crx-field" type="text" value="${escapeHtml(result?.url || '')}">
+                    </label>
+                    <label class="crx-field-wrap">
+                        <span class="crx-label">설명</span>
+                        <textarea id="crx-edit-google-snippet" class="crx-field crx-textarea">${escapeHtml(result?.snippet || '')}</textarea>
+                    </label>
+                </div>
+            </div>
+            ${renderPostEditorFooter()}
+        </div>
+    `;
+        }
+
         function buildPaymentTransactionEditorHtml(transaction = {}) {
             return `
         <div class="crx-popup crx-post-editor crx-payment-transaction-editor">
@@ -1200,6 +1226,7 @@ globalThis.CommunityReactionsTemplates = (() => {
 
         return {
             buildComposerHtml,
+            buildGoogleResultEditorHtml,
             buildPaymentTransactionEditorHtml,
             buildPostEditorHtml,
             buildViewerHtml,

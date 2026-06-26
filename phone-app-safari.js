@@ -20,6 +20,11 @@
         } = context;
         const normalizePhoneHome = normalizeHome;
         const createDefaultPhoneHomeData = createDefaultHomeData;
+        const GOOGLE_RESULT_EDIT_ARIA_LABEL = "검색 결과 수정";
+        const GOOGLE_RESULT_SELECT_ARIA_LABEL = "검색 결과 선택";
+        const GOOGLE_HISTORY_DELETE_ARIA_LABEL = "검색 기록 삭제";
+        const GOOGLE_DELETE_SELECTED_LABEL = "선택 삭제";
+        const GOOGLE_DELETE_ALL_LABEL = "전체 삭제";
 
         function buildGoogleSearchPrompt(input, context) {
             const {
@@ -165,9 +170,8 @@ Rules:
         <section class="crx-phone-app crx-phone-google-app" data-phone-app="googleSearch">
             <div class="crx-phone-google-history">
                 <div class="crx-phone-google-historybar">
-                    <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+                    <button class="crx-phone-google-back" type="button" aria-label="검색 기록 닫기"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i></button>
                     <span class="crx-phone-google-cursor" aria-hidden="true"></span>
-                    <button type="button" aria-label="검색 기록 닫기"><i class="fa-solid fa-xmark"></i></button>
                 </div>
                 <div class="crx-phone-google-history-list">
                     ${searches.map(search => renderGoogleHistoryItem(search)).join('') || '<div class="crx-phone-empty">검색 기록이 없습니다.</div>'}
@@ -181,38 +185,64 @@ Rules:
         }
 
         function renderGoogleHistoryItem(search) {
+            const sourceResultId = search._source_result_id || '';
+            const sourceSearchId = search._source_search_id || search.id || '';
+            const sourceSearchIndex = search._source_search_index ?? '';
             return `
-        <button class="crx-phone-google-history-item" type="button" data-search-id="${escapeHtml(search.id)}">
-            <i class="fa-regular fa-clock" aria-hidden="true"></i>
-            <span>${escapeHtml(search.query)}</span>
-            <i class="fa-solid fa-xmark" aria-hidden="true"></i>
-        </button>
+        <div class="crx-phone-google-history-item" data-search-id="${escapeHtml(search.id)}" data-source-result-id="${escapeHtml(sourceResultId)}" data-source-search-id="${escapeHtml(sourceSearchId)}" data-search-index="${escapeHtml(sourceSearchIndex)}">
+            <button class="crx-phone-google-history-open" type="button" data-search-id="${escapeHtml(search.id)}">
+                <i class="fa-regular fa-clock" aria-hidden="true"></i>
+                <span>${escapeHtml(search.query)}</span>
+            </button>
+            <button class="crx-phone-google-history-delete" type="button" data-source-result-id="${escapeHtml(sourceResultId)}" data-search-id="${escapeHtml(sourceSearchId)}" data-search-index="${escapeHtml(sourceSearchIndex)}" aria-label="${escapeHtml(GOOGLE_HISTORY_DELETE_ARIA_LABEL)}">
+                <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+            </button>
+        </div>
     `;
         }
 
         function renderGoogleResultsPage(search, isActive = false) {
+            const sourceResultId = search._source_result_id || '';
+            const sourceSearchId = search._source_search_id || search.id || '';
+            const sourceSearchIndex = search._source_search_index ?? '';
             return `
-        <article class="crx-phone-google-page${isActive ? ' is-active' : ''}" data-search-id="${escapeHtml(search.id)}">
-            <div class="crx-phone-google-logo" role="img" aria-label="Google"></div>
+        <article class="crx-phone-google-page${isActive ? ' is-active' : ''}" data-search-id="${escapeHtml(search.id)}" data-source-result-id="${escapeHtml(sourceResultId)}" data-source-search-id="${escapeHtml(sourceSearchId)}" data-search-index="${escapeHtml(sourceSearchIndex)}">
+            <div class="crx-phone-google-top">
+                <div class="crx-phone-google-logo" role="img" aria-label="Google"></div>
+                <button class="crx-phone-google-menu" type="button" aria-label="메뉴" aria-pressed="false">
+                    <i class="fa-solid fa-bars" id="crx-google-edit"></i>
+                </button>
+            </div>
             <button class="crx-phone-google-querybar" type="button" aria-label="검색 기록으로 돌아가기">
                 <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
                 <span>${escapeHtml(search.query)}</span>
                 <i class="fa-solid fa-microphone" aria-hidden="true"></i>
             </button>
+            <div class="crx-phone-google-deletebar">
+                <button class="crx-phone-google-delete-selected" type="button"><i class="fa-solid fa-trash" aria-hidden="true"></i><span>${escapeHtml(GOOGLE_DELETE_SELECTED_LABEL)}</span></button>
+                <button class="crx-phone-google-delete-all" type="button" data-source-result-id="${escapeHtml(sourceResultId)}" data-search-id="${escapeHtml(sourceSearchId)}" data-search-index="${escapeHtml(sourceSearchIndex)}"><i class="fa-solid fa-folder-minus" aria-hidden="true"></i><span>${escapeHtml(GOOGLE_DELETE_ALL_LABEL)}</span></button>
+            </div>
             <div class="crx-phone-google-tabs" aria-hidden="true">
                 <span class="is-active">전체</span><span>이미지</span><span>동영상</span><span>뉴스</span><span>지도</span>
             </div>
             <div class="crx-phone-google-result-list">
-                ${search.results.map(result => renderGoogleResult(result)).join('')}
+                ${search.results.map((result, resultIndex) => renderGoogleResult(result, search, resultIndex)).join('')}
             </div>
         </article>
     `;
         }
 
-        function renderGoogleResult(result) {
+        function renderGoogleResult(result, search = {}, resultIndex = 0) {
             const host = getDisplayHost(result.url);
+            const sourceResultId = result._source_result_id || search._source_result_id || '';
+            const sourceSearchId = result._source_search_id || search._source_search_id || search.id || '';
+            const sourceSearchIndex = result._source_search_index ?? search._source_search_index ?? '';
+            const sourceGoogleResultId = result._source_google_result_id || result.id || '';
+            const sourceGoogleResultIndex = result._source_google_result_index ?? resultIndex;
             return `
-        <div class="crx-phone-google-result" rel="noreferrer">
+        <div class="crx-phone-google-result" rel="noreferrer" data-source-result-id="${escapeHtml(sourceResultId)}" data-search-id="${escapeHtml(sourceSearchId)}" data-google-result-id="${escapeHtml(sourceGoogleResultId)}" data-search-index="${escapeHtml(sourceSearchIndex)}" data-google-result-index="${escapeHtml(sourceGoogleResultIndex)}">
+            <label class="crx-phone-google-result-check"><input type="checkbox" data-source-result-id="${escapeHtml(sourceResultId)}" data-search-id="${escapeHtml(sourceSearchId)}" data-google-result-id="${escapeHtml(sourceGoogleResultId)}" data-search-index="${escapeHtml(sourceSearchIndex)}" data-google-result-index="${escapeHtml(sourceGoogleResultIndex)}" aria-label="${escapeHtml(GOOGLE_RESULT_SELECT_ARIA_LABEL)}"></label>
+            <button class="crx-phone-google-result-edit" type="button" data-source-result-id="${escapeHtml(sourceResultId)}" data-search-id="${escapeHtml(sourceSearchId)}" data-google-result-id="${escapeHtml(sourceGoogleResultId)}" data-search-index="${escapeHtml(sourceSearchIndex)}" data-google-result-index="${escapeHtml(sourceGoogleResultIndex)}" aria-label="${escapeHtml(GOOGLE_RESULT_EDIT_ARIA_LABEL)}"><i class="fa-solid fa-ellipsis-vertical" aria-hidden="true"></i></button>
             <span class="crx-phone-google-result-host">${escapeHtml(host)}</span>
             <span class="crx-phone-google-result-title">${escapeHtml(result.title)}</span>
             <span class="crx-phone-google-result-snippet">${escapeHtml(result.snippet)}</span>
@@ -246,11 +276,16 @@ Rules:
 
         function renderHomeIcon(app) {
             return `
-            <button class="crx-phone-app-icon" type="button" data-phone-app="${escapeHtml(app.app_id)}" aria-label="${escapeHtml(app.app_home_label)} 열기">
+            <button class="crx-phone-app-icon" type="button" data-phone-app="${escapeHtml(app.app_id)}"${renderPhoneBadgeAttribute(app.notification_badge)} aria-label="${escapeHtml(app.app_home_label)} 열기">
                 <span class="crx-phone-app-icon-pic crx-phone-safari-icon" aria-hidden="true"></span>
                 <span>${escapeHtml(app.app_home_label)}</span>
             </button>
         `;
+        }
+
+        function renderPhoneBadgeAttribute(value) {
+            const count = Math.floor(Number(value || 0));
+            return Number.isFinite(count) && count > 0 ? ' data-phone-badge="' + escapeHtml(count) + '"' : '';
         }
 
         function mergePhoneSearches(results, appId = 'googleSearch', maxSearches = 48) {
@@ -271,7 +306,7 @@ Rules:
                         continue;
                     }
                     seen.add(key);
-                    data.searches.push(withUniqueSearchIds(search, sourceId, searchIndex));
+                    data.searches.push(withUniqueSearchIds(search, sourceId, searchIndex, result));
                     if (data.searches.length >= maxSearches) {
                         return data;
                     }
@@ -291,22 +326,31 @@ Rules:
             );
         }
 
-        function withUniqueSearchIds(search, sourceId, searchIndex) {
+        function withUniqueSearchIds(search, sourceId, searchIndex, sourceResult = null) {
             const originalSearchId = sanitizeId(search.id || `search_${String(searchIndex + 1).padStart(3, '0')}`, 'search');
+            const sourceResultId = sourceResult?.id || sourceResult?._source_item_id || sourceId || '';
             const searchId = sanitizeId(`${sourceId}_${originalSearchId}`, 'search');
             const results = Array.isArray(search.results)
-                ? search.results.map((result, resultIndex) => ({
-                    ...result,
-                    id: sanitizeId(
-                        `${searchId}_${result.id || `result_${String(resultIndex + 1).padStart(3, '0')}`}`,
-                        'result',
-                    ),
-                }))
+                ? search.results.map((result, resultIndex) => {
+                    const originalResultId = sanitizeId(result.id || `result_${String(resultIndex + 1).padStart(3, '0')}`, 'result');
+                    return {
+                        ...result,
+                        id: sanitizeId(`${searchId}_${originalResultId}`, 'result'),
+                        _source_result_id: sourceResultId,
+                        _source_search_id: originalSearchId,
+                        _source_search_index: searchIndex,
+                        _source_google_result_id: originalResultId,
+                        _source_google_result_index: resultIndex,
+                    };
+                })
                 : [];
 
             return {
                 ...search,
                 id: searchId,
+                _source_result_id: sourceResultId,
+                _source_search_id: originalSearchId,
+                _source_search_index: searchIndex,
                 results,
             };
         }

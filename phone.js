@@ -158,7 +158,10 @@ Follow it when it does not conflict with the JSON schema.`
 
         function buildPhoneViewerHtml(viewState) {
             const apps = Array.isArray(viewState?.apps) ? viewState.apps : [];
-            const renderApps = home.getRenderableApps(apps, createStaticPhoneAppData);
+            const renderApps = applyPhoneNotificationBadge(
+                home.getRenderableApps(apps, createStaticPhoneAppData),
+                normalizePhoneNotificationBadge(viewState?.notificationBadge),
+            );
             const activeAppId = viewState?.activeAppId || renderApps[0]?.app_id || 'googleSearch';
             const clock = formatPhoneStatusTime(new Date());
 
@@ -186,6 +189,49 @@ Follow it when it does not conflict with the JSON schema.`
             return `${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
         }
 
+        function normalizePhoneNotificationBadge(value) {
+            const count = Math.floor(Number(value?.count || 0));
+            const appId = String(value?.appId || '').trim();
+            if (!appId || !Number.isFinite(count) || count <= 0) {
+                return null;
+            }
+            return {
+                appId,
+                count,
+                bankTheme: String(value?.bankTheme || '').trim(),
+            };
+        }
+
+        function applyPhoneNotificationBadge(apps, badge) {
+            if (!badge) {
+                return apps;
+            }
+            return apps.map(app => {
+                if (app?.app_id !== badge.appId) {
+                    return app;
+                }
+                const next = {
+                    ...app,
+                    notification_badge: badge.count,
+                    notification_bank_theme: badge.bankTheme,
+                };
+                if (badge.bankTheme && Array.isArray(app.payment_banks)) {
+                    next.payment_banks = app.payment_banks.map(payment => String(payment?.bank_theme || '') === badge.bankTheme
+                        ? { ...payment, notification_badge: badge.count }
+                        : payment);
+                }
+                if (badge.bankTheme && app.payment && String(app.payment.bank_theme || '') === badge.bankTheme) {
+                    next.payment = { ...app.payment, notification_badge: badge.count };
+                }
+                return next;
+            });
+        }
+
+        function renderPhoneBadgeAttribute(value) {
+            const count = Math.floor(Number(value || 0));
+            return Number.isFinite(count) && count > 0 ? ' data-phone-badge="' + escapeHtml(count) + '"' : '';
+        }
+
         function createStaticPhoneAppData(dockApp) {
             const appId = typeof dockApp === 'string' ? dockApp : dockApp?.app_id;
             const data = createEmptyPhoneAppData(appId);
@@ -209,7 +255,7 @@ Follow it when it does not conflict with the JSON schema.`
 
         function renderGenericHomeIcon(app) {
             return `
-            <button class="crx-phone-app-icon" type="button" data-phone-app="${escapeHtml(app.app_id)}" aria-label="${escapeHtml(app.app_home_label)} 열기">
+            <button class="crx-phone-app-icon" type="button" data-phone-app="${escapeHtml(app.app_id)}"${renderPhoneBadgeAttribute(app.notification_badge)} aria-label="${escapeHtml(app.app_home_label)} 열기">
                 <span class="crx-phone-app-icon-pic crx-phone-generic-icon" aria-hidden="true"><i class="fa-solid fa-mobile-screen"></i></span>
                 <span>${escapeHtml(app.app_home_label)}</span>
             </button>

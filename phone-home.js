@@ -15,6 +15,12 @@ globalThis.CommunityReactionsPhoneHome = (() => {
             Object.freeze({ app_id: 'appleMusic', app_label: 'Apple Music', app_home_label: 'Music' }),
         ]);
         const PHONE_DOCK_APP_IDS = Object.freeze(new Set(PHONE_DOCK_APPS.map(app => app.app_id)));
+        const PHONE_INERT_APP_IDS = Object.freeze(new Set(['phoneCall', 'iMessage', 'appleMusic']));
+        const PHONE_HOME_STATIC_APPS = Object.freeze([
+            Object.freeze({ app_id: 'setting', app_label: 'Setting', app_home_label: 'Setting' }),
+            Object.freeze({ app_id: 'generate', app_label: '생성하기', app_home_label: '생성하기' }),
+        ]);
+        const PHONE_HOME_STATIC_APP_IDS = Object.freeze(new Set(PHONE_HOME_STATIC_APPS.map(app => app.app_id)));
         const WEATHER_DEFAULTS = Object.freeze({
             korea: Object.freeze({ city: 'Seoul', temperature: 22, high: 24, low: 17, unit: 'C', condition: 'Partly Cloudy', weather_emoji: '🌤️' }),
             japan: Object.freeze({ city: 'Tokyo', temperature: 22, high: 25, low: 18, unit: 'C', condition: 'Partly Cloudy', weather_emoji: '🌤️' }),
@@ -174,8 +180,9 @@ Phone home screen structured data rules:
             const normalizedApps = (Array.isArray(apps) ? apps : []).filter(app => app?.app_id);
             const byId = new Map(normalizedApps.map(app => [app.app_id, app]));
             const dockApps = PHONE_DOCK_APPS.map(dockApp => byId.get(dockApp.app_id) || createStaticAppData(dockApp));
-            const extraApps = normalizedApps.filter(app => !PHONE_DOCK_APP_IDS.has(app.app_id));
-            return [...dockApps, ...extraApps];
+            const extraApps = normalizedApps.filter(app => !PHONE_DOCK_APP_IDS.has(app.app_id) && !PHONE_HOME_STATIC_APP_IDS.has(app.app_id));
+            const homeStaticApps = PHONE_HOME_STATIC_APPS.map(staticApp => byId.get(staticApp.app_id) || createStaticAppData(staticApp));
+            return [...dockApps, ...extraApps, ...homeStaticApps];
         }
 
         function getPhoneHomeData(apps) {
@@ -224,11 +231,19 @@ Phone home screen structured data rules:
 
         function renderPhoneDockIcon(app) {
             const iconClass = getPhoneDockIconClass(app.app_id);
+            const actionAttribute = PHONE_INERT_APP_IDS.has(app.app_id)
+                ? 'data-phone-action="noop" aria-disabled="true"'
+                : 'data-phone-app="' + escapeHtml(app.app_id) + '"';
             return `
-            <button class="crx-phone-app-icon crx-phone-dock-icon" type="button" data-phone-app="${escapeHtml(app.app_id)}" aria-label="Open ${escapeHtml(app.app_home_label)}">
+            <button class="crx-phone-app-icon crx-phone-dock-icon" type="button" ${actionAttribute}${renderPhoneBadgeAttribute(app.notification_badge)} aria-label="Open ${escapeHtml(app.app_home_label)}">
                 <span class="crx-phone-app-icon-pic ${iconClass}" aria-hidden="true"></span>
             </button>
         `;
+        }
+
+        function renderPhoneBadgeAttribute(value) {
+            const count = Math.floor(Number(value || 0));
+            return Number.isFinite(count) && count > 0 ? ' data-phone-badge="' + escapeHtml(count) + '"' : '';
         }
 
         function getPhoneDockIconClass(appId) {

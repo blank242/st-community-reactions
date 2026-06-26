@@ -2,6 +2,10 @@ globalThis.CommunityReactionsExtension = (() => {
     'use strict';
 
     const MODULE_NAME = 'st-community-reactions';
+    const PHONE_WALLPAPER_FILE_NAME = 'crx__phone_wallpaper.webp';
+    const PHONE_WALLPAPER_FILE_PATH = '/user/files/' + PHONE_WALLPAPER_FILE_NAME;
+    const PHONE_WALLPAPER_STORAGE_KEY = MODULE_NAME + ':phone-wallpaper';
+    const PHONE_WALLPAPER_MAX_DIMENSION = 1800;
     const EXTENSION_BASE_URL = (() => {
         if (typeof import.meta?.url === 'string') {
             return new URL('.', import.meta.url).href;
@@ -11,12 +15,25 @@ globalThis.CommunityReactionsExtension = (() => {
             ? new URL('.', src).href
             : new URL(`/scripts/extensions/third-party/${MODULE_NAME}/`, window.location.href).href;
     })();
-    const TEMPLATE_SCRIPT_VERSION = '20260625-payment-edit-1';
+    const TEMPLATE_SCRIPT_VERSION = '20260626-google-result-edit-1';
     const PROMPT_SCRIPT_VERSION = '20260624-custom-country-1';
     const STORAGE_SCRIPT_VERSION = '20260624-custom-country-1';
-    const PHONE_SCRIPT_VERSION = '20260626-payment-bofa-copy-1';
-    const PHONE_STYLE_VERSION = '20260625-google-logo-1';
-    const PHONE_PAYMENT_STYLE_VERSION = '20260625-payment-edit-1';
+    const PHONE_SCRIPT_VERSION = '20260626-phone-badges-inert-1';
+    const PHONE_STYLE_VERSION = '20260626-phone-badges-inert-1';
+    const PHONE_PAYMENT_STYLE_VERSION = '20260626-payment-delete-1';
+    const PHONE_WALLPAPER_TEXT = Object.freeze({
+        title: '배경화면 설정',
+        image: '배경화면 이미지',
+        upload: '이미지 업로드',
+        defaultImage: '기본 이미지로 설정',
+        close: '닫기',
+        chooseImage: '업로드할 이미지를 선택하세요.',
+        imageOnly: '이미지 파일만 업로드할 수 있습니다.',
+        changed: '배경화면을 변경했습니다.',
+        reset: '기본 배경화면으로 변경했습니다.',
+        uploadFailed: '배경화면 업로드에 실패했습니다.',
+        resetFailed: '기본 배경화면 설정에 실패했습니다.',
+    });
     const PHONE_MODULE_SCRIPT_GROUPS = Object.freeze([
         Object.freeze(['phone-registry.js']),
         Object.freeze([
@@ -187,6 +204,8 @@ globalThis.CommunityReactionsExtension = (() => {
         composerModal: null,
         viewerModal: null,
         postEditorModal: null,
+        wallpaperModal: null,
+        phoneNotificationBadge: null,
         activeResult: null,
         activeIndex: null,
         activeCommunity: '',
@@ -963,6 +982,7 @@ globalThis.CommunityReactionsExtension = (() => {
     }
     function closeViewer(options = {}) {
         closePostEditor();
+        closePhoneWallpaperSettings();
         const modal = state.viewerModal;
         const shouldAnimatePhone = Boolean(options.animatePhone && modal?.classList?.contains('crx-phone-viewer-modal'));
         state.viewerModal = null;
@@ -970,6 +990,7 @@ globalThis.CommunityReactionsExtension = (() => {
         state.activeIndex = null;
         state.activeCommunity = '';
         state.activeViewKey = '';
+        state.phoneNotificationBadge = null;
         state.communityItems = [];
         state.communityItemCursor = 0;
         state.communityResults = new Map();
@@ -986,6 +1007,321 @@ globalThis.CommunityReactionsExtension = (() => {
             return;
         }
         modal?.remove();
+    }
+
+    function getJsonRequestHeaders() {
+        return {
+            ...(getContextSafe()?.getRequestHeaders?.() || {}),
+            'Content-Type': 'application/json',
+        };
+    }
+
+    function getStoredPhoneWallpaper() {
+        try {
+            const value = JSON.parse(localStorage.getItem(PHONE_WALLPAPER_STORAGE_KEY) || 'null');
+            if (value?.path === PHONE_WALLPAPER_FILE_PATH && value.updated_at) {
+                return value;
+            }
+        } catch (error) {
+            console.warn('[Community Reactions] Failed to read phone wallpaper preference.', error);
+        }
+        return null;
+    }
+
+    function setStoredPhoneWallpaper(updatedAt) {
+        try {
+            localStorage.setItem(PHONE_WALLPAPER_STORAGE_KEY, JSON.stringify({
+                path: PHONE_WALLPAPER_FILE_PATH,
+                updated_at: updatedAt,
+            }));
+        } catch (error) {
+            console.warn('[Community Reactions] Failed to save phone wallpaper preference.', error);
+        }
+    }
+
+    function clearStoredPhoneWallpaper() {
+        try {
+            localStorage.removeItem(PHONE_WALLPAPER_STORAGE_KEY);
+        } catch (error) {
+            console.warn('[Community Reactions] Failed to clear phone wallpaper preference.', error);
+        }
+    }
+
+    function applyPhoneWallpaperPreference() {
+        const wallpaper = getStoredPhoneWallpaper();
+        if (!wallpaper) {
+            document.documentElement.style.removeProperty('--crx-phone-wallpaper-image');
+            return;
+        }
+
+        const version = encodeURIComponent(String(wallpaper.updated_at));
+        document.documentElement.style.setProperty('--crx-phone-wallpaper-image', 'url("' + PHONE_WALLPAPER_FILE_PATH + '?v=' + version + '")');
+    }
+
+    function buildPhoneWallpaperSettingsHtml() {
+        return [
+            '<div class="crx-popup crx-phone-wallpaper-popup" role="dialog" aria-modal="true" aria-labelledby="crx-phone-wallpaper-title">',
+            '<div class="crx-header">',
+            '<div class="crx-title" id="crx-phone-wallpaper-title">' + escapeHtml(PHONE_WALLPAPER_TEXT.title) + '</div>',
+            '<button id="crx-close-phone-wallpaper" class="crx-icon-button" type="button" aria-label="' + escapeHtml(PHONE_WALLPAPER_TEXT.close) + '"><i class="fa-solid fa-xmark"></i></button>',
+            '</div>',
+            '<div class="crx-sheet">',
+            '<label class="crx-field-wrap">',
+            '<span class="crx-label">' + escapeHtml(PHONE_WALLPAPER_TEXT.image) + '</span>',
+            '<input id="crx-phone-wallpaper-file" class="crx-field" type="file" accept="image/*">',
+            '</label>',
+            '<div class="crx-phone-wallpaper-preview" aria-hidden="true"></div>',
+            '</div>',
+            '<div class="crx-footer">',
+            '<button id="crx-reset-phone-wallpaper" class="crx-secondary-button" type="button">' + escapeHtml(PHONE_WALLPAPER_TEXT.defaultImage) + '</button>',
+            '<button id="crx-upload-phone-wallpaper" class="crx-primary-button" type="button" disabled>' + escapeHtml(PHONE_WALLPAPER_TEXT.upload) + '</button>',
+            '</div>',
+            '</div>',
+        ].join('');
+    }
+
+    function openPhoneWallpaperSettings() {
+        closePhoneWallpaperSettings();
+        applyPhoneWallpaperPreference();
+        const modal = createModal(buildPhoneWallpaperSettingsHtml(), 'crx-phone-wallpaper-modal');
+        state.wallpaperModal = modal;
+        bindPhoneWallpaperSettingsModal(modal);
+    }
+
+    function bindPhoneWallpaperSettingsModal(modal) {
+        const root = modal.querySelector('.crx-phone-wallpaper-popup');
+        const fileInput = root?.querySelector('#crx-phone-wallpaper-file');
+        const uploadButton = root?.querySelector('#crx-upload-phone-wallpaper');
+        if (!root || !fileInput || !uploadButton) {
+            return;
+        }
+
+        const close = () => closePhoneWallpaperSettings();
+        modal.querySelector('.crx-modal-backdrop')?.addEventListener('click', close);
+        root.querySelector('#crx-close-phone-wallpaper')?.addEventListener('click', close);
+        root.querySelector('#crx-reset-phone-wallpaper')?.addEventListener('click', () => void resetPhoneWallpaperToDefault(root));
+        uploadButton.addEventListener('click', () => void handlePhoneWallpaperUpload(root));
+        fileInput.addEventListener('change', () => {
+            const file = fileInput.files?.[0] || null;
+            if (file && !file.type.startsWith('image/')) {
+                fileInput.value = '';
+                setPhoneWallpaperPreviewUrl(modal, '');
+                uploadButton.disabled = true;
+                toastr.warning(PHONE_WALLPAPER_TEXT.imageOnly);
+                return;
+            }
+
+            setPhoneWallpaperPreviewUrl(modal, file ? URL.createObjectURL(file) : '');
+            uploadButton.disabled = !file;
+        });
+    }
+
+    function setPhoneWallpaperPreviewUrl(modal, url) {
+        if (modal._crxWallpaperPreviewUrl) {
+            URL.revokeObjectURL(modal._crxWallpaperPreviewUrl);
+        }
+        modal._crxWallpaperPreviewUrl = url || '';
+        const preview = modal.querySelector('.crx-phone-wallpaper-preview');
+        if (preview) {
+            preview.style.backgroundImage = url ? 'url("' + url + '")' : '';
+        }
+    }
+
+    function closePhoneWallpaperSettings() {
+        const modal = state.wallpaperModal;
+        if (!modal) {
+            return;
+        }
+        setPhoneWallpaperPreviewUrl(modal, '');
+        modal.remove();
+        if (state.wallpaperModal === modal) {
+            state.wallpaperModal = null;
+        }
+    }
+
+    async function handlePhoneWallpaperUpload(root) {
+        const file = root.querySelector('#crx-phone-wallpaper-file')?.files?.[0] || null;
+        if (!file) {
+            toastr.warning(PHONE_WALLPAPER_TEXT.chooseImage);
+            return;
+        }
+        if (!file.type.startsWith('image/')) {
+            toastr.warning(PHONE_WALLPAPER_TEXT.imageOnly);
+            return;
+        }
+
+        setPhoneWallpaperButtonsDisabled(root, true);
+        try {
+            await uploadPhoneWallpaperFile(file);
+            const updatedAt = Date.now();
+            setStoredPhoneWallpaper(updatedAt);
+            applyPhoneWallpaperPreference();
+            closePhoneWallpaperSettings();
+            toastr.success(PHONE_WALLPAPER_TEXT.changed);
+        } catch (error) {
+            toastr.error(error?.message || PHONE_WALLPAPER_TEXT.uploadFailed);
+        } finally {
+            if (state.wallpaperModal?.contains(root)) {
+                setPhoneWallpaperButtonsDisabled(root, false);
+                const hasFile = Boolean(root.querySelector('#crx-phone-wallpaper-file')?.files?.[0]);
+                root.querySelector('#crx-upload-phone-wallpaper').disabled = !hasFile;
+            }
+        }
+    }
+
+    async function resetPhoneWallpaperToDefault(root) {
+        setPhoneWallpaperButtonsDisabled(root, true);
+        try {
+            await deleteUploadedPhoneWallpaper();
+            clearStoredPhoneWallpaper();
+            applyPhoneWallpaperPreference();
+            closePhoneWallpaperSettings();
+            toastr.success(PHONE_WALLPAPER_TEXT.reset);
+        } catch (error) {
+            toastr.error(error?.message || PHONE_WALLPAPER_TEXT.resetFailed);
+        } finally {
+            if (state.wallpaperModal?.contains(root)) {
+                setPhoneWallpaperButtonsDisabled(root, false);
+                const hasFile = Boolean(root.querySelector('#crx-phone-wallpaper-file')?.files?.[0]);
+                root.querySelector('#crx-upload-phone-wallpaper').disabled = !hasFile;
+            }
+        }
+    }
+
+    function setPhoneWallpaperButtonsDisabled(root, disabled) {
+        root.querySelectorAll('#crx-upload-phone-wallpaper, #crx-reset-phone-wallpaper').forEach(button => {
+            button.disabled = disabled;
+        });
+    }
+
+    async function uploadPhoneWallpaperFile(file) {
+        const data = await encodePhoneWallpaperFile(file);
+        const response = await fetch('/api/files/upload', {
+            method: 'POST',
+            headers: getJsonRequestHeaders(),
+            body: JSON.stringify({
+                name: PHONE_WALLPAPER_FILE_NAME,
+                data,
+            }),
+        });
+
+        if (!response.ok) {
+            throw new Error(await response.text());
+        }
+    }
+
+    async function deleteUploadedPhoneWallpaper() {
+        const response = await fetch('/api/files/delete', {
+            method: 'POST',
+            headers: getJsonRequestHeaders(),
+            body: JSON.stringify({ path: PHONE_WALLPAPER_FILE_PATH }),
+        });
+        if (!response.ok && response.status !== 404) {
+            throw new Error(await response.text());
+        }
+    }
+
+    async function encodePhoneWallpaperFile(file) {
+        const objectUrl = URL.createObjectURL(file);
+        try {
+            const image = await loadImageFromUrl(objectUrl);
+            const sourceWidth = image.naturalWidth || image.width;
+            const sourceHeight = image.naturalHeight || image.height;
+            if (!sourceWidth || !sourceHeight) {
+                throw new Error(PHONE_WALLPAPER_TEXT.imageOnly);
+            }
+
+            const scale = Math.min(1, PHONE_WALLPAPER_MAX_DIMENSION / Math.max(sourceWidth, sourceHeight));
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, Math.round(sourceWidth * scale));
+            canvas.height = Math.max(1, Math.round(sourceHeight * scale));
+            const context = canvas.getContext('2d');
+            if (!context) {
+                throw new Error(PHONE_WALLPAPER_TEXT.uploadFailed);
+            }
+            context.drawImage(image, 0, 0, canvas.width, canvas.height);
+            const blob = await canvasToBlob(canvas, 'image/webp', 0.92);
+            return blobToBase64(blob);
+        } finally {
+            URL.revokeObjectURL(objectUrl);
+        }
+    }
+
+    function loadImageFromUrl(url) {
+        return new Promise((resolve, reject) => {
+            const image = new Image();
+            image.onload = () => resolve(image);
+            image.onerror = () => reject(new Error(PHONE_WALLPAPER_TEXT.imageOnly));
+            image.src = url;
+        });
+    }
+
+    function canvasToBlob(canvas, type, quality) {
+        return new Promise((resolve, reject) => {
+            canvas.toBlob(blob => {
+                if (blob) {
+                    resolve(blob);
+                    return;
+                }
+                reject(new Error(PHONE_WALLPAPER_TEXT.uploadFailed));
+            }, type, quality);
+        });
+    }
+
+    function blobToBase64(blob) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result || '').replace(/^data:[^,]+,/, ''));
+            reader.onerror = () => reject(reader.error || new Error(PHONE_WALLPAPER_TEXT.uploadFailed));
+            reader.readAsDataURL(blob);
+        });
+    }
+
+    function getPhoneGeneratedContentCount(result) {
+        if (Array.isArray(result?.phone?.searches)) {
+            return result.phone.searches.length;
+        }
+        if (Array.isArray(result?.phone?.payment?.transactions)) {
+            return result.phone.payment.transactions.length;
+        }
+        if (Array.isArray(result?.phone?.payment_banks)) {
+            return result.phone.payment_banks.reduce((sum, payment) => sum + (Array.isArray(payment?.transactions) ? payment.transactions.length : 0), 0);
+        }
+        return 0;
+    }
+
+    function createPhoneNotificationBadge(result) {
+        const count = getPhoneGeneratedContentCount(result);
+        const appId = getPhoneAppOrDefault(result?.generation?.phone_app_id || result?.generation?.site);
+        if (!appId || count <= 0) {
+            return null;
+        }
+        return {
+            appId,
+            count,
+            bankTheme: appId === 'paymentHistory' ? String(result?.phone?.payment?.bank_theme || '') : '',
+        };
+    }
+
+    function openPhoneGenerateComposerFromViewer() {
+        closeViewer({ animatePhone: true });
+        window.setTimeout(() => {
+            void openComposerInPhoneMode();
+        }, 540);
+    }
+
+    async function openComposerInPhoneMode() {
+        if (!state.composerModal) {
+            await openComposer();
+        }
+        const root = state.composerModal?.querySelector('.crx-popup');
+        const modeSelect = root?.querySelector('#crx-reaction-mode');
+        if (!root || !modeSelect) {
+            return;
+        }
+        modeSelect.value = 'phone';
+        modeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        syncComposerControls(root);
     }
 
     function animatePhoneViewerClose(modal) {
@@ -1136,6 +1472,7 @@ globalThis.CommunityReactionsExtension = (() => {
 
         loadExtensionStyle(`phone.css?v=${PHONE_STYLE_VERSION}`);
         loadExtensionStyle(`phone-payments.css?v=${PHONE_PAYMENT_STYLE_VERSION}`);
+        applyPhoneWallpaperPreference();
         for (const scriptGroup of PHONE_MODULE_SCRIPT_GROUPS) {
             await Promise.all(scriptGroup.map(scriptName => loadExtensionScript(`${scriptName}?v=${PHONE_SCRIPT_VERSION}`)));
         }
@@ -2458,7 +2795,7 @@ globalThis.CommunityReactionsExtension = (() => {
             await saveResult(result);
             closeComposer();
             if (input.reaction_mode === 'phone') {
-                await openPhoneViewer(result);
+                await openPhoneViewer(result, null, null, { notificationBadge: createPhoneNotificationBadge(result) });
             } else {
                 await openViewer(result);
             }
@@ -2694,7 +3031,7 @@ globalThis.CommunityReactionsExtension = (() => {
         await openPhoneViewer(null, actualIndex, `phone:${activeAppId}`);
     }
 
-    async function openPhoneViewer(result, index = null, viewKey = null) {
+    async function openPhoneViewer(result, index = null, viewKey = null, options = {}) {
         await initializePhone();
         closeViewer();
         const context = getContextSafe();
@@ -2706,8 +3043,9 @@ globalThis.CommunityReactionsExtension = (() => {
         state.activeIndex = actualIndex;
         state.activeViewKey = `phone:${activeAppId}`;
         state.activeCommunity = activeAppId;
+        state.phoneNotificationBadge = options.notificationBadge || null;
         const initialApps = getInitialPhoneViewerApps(result, activeAppId);
-        const modal = createModal(phone.buildPhoneViewerHtml({ apps: initialApps, activeAppId }), 'crx-phone-viewer-modal');
+        const modal = createModal(phone.buildPhoneViewerHtml({ apps: initialApps, activeAppId, notificationBadge: state.phoneNotificationBadge }), 'crx-phone-viewer-modal');
         state.viewerModal = modal;
         bindPhoneViewerFrame(modal);
         bindPhoneViewerDynamicContent(modal);
@@ -2734,7 +3072,7 @@ globalThis.CommunityReactionsExtension = (() => {
             return;
         }
 
-        replacePhoneViewerPopupContent(modal, phone.buildPhoneViewerHtml({ apps, activeAppId }));
+        replacePhoneViewerPopupContent(modal, phone.buildPhoneViewerHtml({ apps, activeAppId, notificationBadge: state.phoneNotificationBadge }));
         bindPhoneViewerDynamicContent(modal);
     }
 
@@ -2745,6 +3083,9 @@ globalThis.CommunityReactionsExtension = (() => {
         }
         const currentDevice = currentPopup.querySelector('.crx-phone-device');
         const activeAppId = currentDevice?.dataset.activeApp || '';
+        const activePaymentBank = currentDevice?.dataset.activePaymentBank
+            || currentPopup.querySelector('.crx-phone-payment-bank-screen.is-active-bank')?.dataset.paymentBank
+            || '';
         const keepAppOpen = Boolean(activeAppId && currentDevice?.classList.contains('is-app-open'));
 
         const template = document.createElement('template');
@@ -2756,7 +3097,7 @@ globalThis.CommunityReactionsExtension = (() => {
 
         currentPopup.replaceChildren(...Array.from(nextPopup.childNodes));
         if (keepAppOpen) {
-            openPhoneAppById(modal, activeAppId);
+            openPhoneAppById(modal, activeAppId, { paymentBankTheme: activePaymentBank });
         }
     }
 
@@ -2813,6 +3154,23 @@ globalThis.CommunityReactionsExtension = (() => {
                     closeViewer({ animatePhone: true });
                     return;
                 }
+                if (appIcon.dataset.phoneAction === 'noop') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    return;
+                }
+                if (appIcon.dataset.phoneAction === 'wallpaperSettings') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    openPhoneWallpaperSettings();
+                    return;
+                }
+                if (appIcon.dataset.phoneAction === 'openGenerator') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    openPhoneGenerateComposerFromViewer();
+                    return;
+                }
                 openPhoneAppFromIcon(modal, appIcon);
                 return;
             }
@@ -2823,7 +3181,47 @@ globalThis.CommunityReactionsExtension = (() => {
                 return;
             }
 
-            const historyItem = closestInModal(target, '.crx-phone-google-history-item', modal);
+            const googleBack = closestInModal(target, '.crx-phone-google-back', modal);
+            if (googleBack) {
+                event.preventDefault();
+                event.stopPropagation();
+                showPhoneHome(modal);
+                return;
+            }
+
+            const googleMenu = closestInModal(target, '.crx-phone-google-menu', modal);
+            if (googleMenu) {
+                event.preventDefault();
+                event.stopPropagation();
+                togglePhoneGoogleDeleteMode(googleMenu);
+                return;
+            }
+
+            const googleDeleteSelected = closestInModal(target, '.crx-phone-google-delete-selected', modal);
+            if (googleDeleteSelected) {
+                event.preventDefault();
+                event.stopPropagation();
+                void deleteSelectedPhoneGoogleResults(googleDeleteSelected);
+                return;
+            }
+
+            const googleDeleteAll = closestInModal(target, '.crx-phone-google-delete-all', modal);
+            if (googleDeleteAll) {
+                event.preventDefault();
+                event.stopPropagation();
+                void deleteAllPhoneGoogleResults(googleDeleteAll);
+                return;
+            }
+
+            const historyDelete = closestInModal(target, '.crx-phone-google-history-delete', modal);
+            if (historyDelete) {
+                event.preventDefault();
+                event.stopPropagation();
+                void deletePhoneGoogleHistorySearch(historyDelete);
+                return;
+            }
+
+            const historyItem = closestInModal(target, '.crx-phone-google-history-item, .crx-phone-google-history-open', modal);
             if (historyItem) {
                 openPhoneGoogleSearch(historyItem);
                 return;
@@ -2832,6 +3230,38 @@ globalThis.CommunityReactionsExtension = (() => {
             const querybar = closestInModal(target, '.crx-phone-google-querybar', modal);
             if (querybar) {
                 querybar.closest('.crx-phone-google-app')?.classList.remove('is-search-open');
+                return;
+            }
+
+            const googleResultEdit = closestInModal(target, '.crx-phone-google-result-edit', modal);
+            if (googleResultEdit) {
+                event.preventDefault();
+                event.stopPropagation();
+                void openPhoneGoogleResultEditor(googleResultEdit);
+                return;
+            }
+
+            const paymentMenu = closestInModal(target, '.crx-phone-payment-menu', modal);
+            if (paymentMenu) {
+                event.preventDefault();
+                event.stopPropagation();
+                togglePhonePaymentDeleteMode(paymentMenu);
+                return;
+            }
+
+            const paymentDeleteSelected = closestInModal(target, '.crx-phone-payment-delete-selected', modal);
+            if (paymentDeleteSelected) {
+                event.preventDefault();
+                event.stopPropagation();
+                void deleteSelectedPhonePaymentTransactions(paymentDeleteSelected);
+                return;
+            }
+
+            const paymentDeleteAll = closestInModal(target, '.crx-phone-payment-delete-all', modal);
+            if (paymentDeleteAll) {
+                event.preventDefault();
+                event.stopPropagation();
+                void deleteAllPhonePaymentTransactions(paymentDeleteAll);
                 return;
             }
 
@@ -2861,27 +3291,50 @@ globalThis.CommunityReactionsExtension = (() => {
     }
 
     function openPhoneAppFromIcon(modal, button) {
-        openPhoneAppById(modal, button.dataset.phoneApp || 'googleSearch');
+        openPhoneAppById(modal, button.dataset.phoneApp || 'googleSearch', {
+            paymentBankTheme: button.dataset.paymentBankTheme || '',
+        });
     }
 
-    function openPhoneAppById(modal, appId) {
+    function openPhoneAppById(modal, appId, options = {}) {
         const device = modal.querySelector('.crx-phone-device');
         if (!device) {
             return;
         }
         device.dataset.activeApp = appId;
         device.classList.add('is-app-open');
+        let activeApp = null;
         modal.querySelectorAll('.crx-phone-app').forEach(app => {
             const active = app.dataset.phoneApp === appId;
             app.classList.toggle('is-active', active);
             if (active) {
                 app.classList.remove('is-search-open');
+                activeApp = app;
             }
         });
+        if (activeApp && appId === 'paymentHistory') {
+            setActivePhonePaymentBank(device, activeApp, options.paymentBankTheme || '');
+        }
+    }
+
+    function setActivePhonePaymentBank(device, app, bankTheme) {
+        const screens = Array.from(app.querySelectorAll('.crx-phone-payment-bank-screen'));
+        if (!screens.length) {
+            delete device.dataset.activePaymentBank;
+            return;
+        }
+        const activeScreen = screens.find(screen => screen.dataset.paymentBank === bankTheme) || screens[0];
+        screens.forEach(screen => {
+            screen.classList.toggle('is-active-bank', screen === activeScreen);
+        });
+        device.dataset.activePaymentBank = activeScreen.dataset.paymentBank || '';
     }
 
     function showPhoneHome(modal) {
         const device = modal.querySelector('.crx-phone-device');
+        if (device) {
+            delete device.dataset.activePaymentBank;
+        }
         device?.classList.remove('is-app-open');
         modal.querySelectorAll('.crx-phone-app').forEach(app => {
             app.classList.remove('is-active', 'is-search-open');
@@ -2889,19 +3342,243 @@ globalThis.CommunityReactionsExtension = (() => {
     }
 
     function openPhoneGoogleSearch(button) {
-        const app = button.closest('.crx-phone-google-app');
-        const searchId = button.dataset.searchId || '';
-        app?.querySelectorAll('.crx-phone-google-page').forEach(page => {
-            page.classList.toggle('is-active', page.dataset.searchId === searchId);
+        const searchId = button.dataset.searchId || button.closest('.crx-phone-google-history-item')?.dataset.searchId || '';
+        openPhoneGoogleSearchById(button.closest('.crx-phone-google-app'), searchId);
+    }
+
+    function openPhoneGoogleSearchById(root, searchId) {
+        const app = root?.classList?.contains('crx-phone-google-app')
+            ? root
+            : root?.querySelector?.('.crx-phone-google-app');
+        if (!app || !searchId) {
+            return false;
+        }
+
+        let matched = false;
+        app.querySelectorAll('.crx-phone-google-page').forEach(page => {
+            const active = page.dataset.searchId === searchId;
+            page.classList.toggle('is-active', active);
+            matched = matched || active;
         });
-        app?.classList.add('is-search-open');
+        if (matched) {
+            app.classList.add('is-search-open');
+        }
+        return matched;
+    }
+
+    function togglePhoneGoogleDeleteMode(button, force = null) {
+        const app = button.closest('.crx-phone-google-app');
+        if (!app) {
+            return;
+        }
+
+        const active = force == null ? !app.classList.contains('is-delete-mode') : Boolean(force);
+        app.classList.toggle('is-delete-mode', active);
+        app.querySelectorAll('.crx-phone-google-menu').forEach(menu => {
+            menu.classList.toggle('is-active', active);
+            menu.setAttribute('aria-pressed', String(active));
+        });
+        if (!active) {
+            app.querySelectorAll('.crx-phone-google-result-check input:checked').forEach(input => {
+                input.checked = false;
+            });
+        }
     }
 
     function togglePhonePaymentTranslation(button) {
         const app = button.closest('.crx-phone-payment-app');
         const active = app?.classList.toggle('is-translation-visible') || false;
         button.setAttribute('aria-pressed', String(active));
+        if (button.classList.contains('is-icon-only')) {
+            return;
+        }
         button.textContent = active ? '원문 보기' : '번역 보기';
+    }
+
+
+    function togglePhonePaymentDeleteMode(button, force = null) {
+        const app = button.closest('.crx-phone-payment-app');
+        if (!app) {
+            return;
+        }
+
+        const active = force == null ? !app.classList.contains('is-delete-mode') : Boolean(force);
+        app.classList.toggle('is-delete-mode', active);
+        app.querySelectorAll('.crx-phone-payment-menu').forEach(menu => {
+            menu.classList.toggle('is-active', active);
+            menu.setAttribute('aria-pressed', String(active));
+        });
+        if (!active) {
+            app.querySelectorAll('.crx-phone-payment-transaction-check input:checked').forEach(input => {
+                input.checked = false;
+            });
+        }
+    }
+
+    function getPhonePaymentBankScreenFromElement(element) {
+        return element.closest?.('.crx-phone-payment-bank-screen')
+            || element.closest?.('.crx-phone-payment-app')?.querySelector('.crx-phone-payment-bank-screen.is-active-bank')
+            || null;
+    }
+
+    function getPhonePaymentBankThemeFromElement(element) {
+        return normalizePhonePaymentBankTheme(getPhonePaymentBankScreenFromElement(element)?.dataset.paymentBank || element.dataset.bankTheme || '');
+    }
+
+    function normalizePhonePaymentBankTheme(value) {
+        return value === 'bankOfAmerica' ? 'bankOfAmerica' : 'kbKookmin';
+    }
+
+    async function deleteSelectedPhonePaymentTransactions(button) {
+        const screen = getPhonePaymentBankScreenFromElement(button);
+        const selected = [...(screen?.querySelectorAll('.crx-phone-payment-transaction-check input:checked') || [])];
+        if (!selected.length) {
+            toastr.warning("삭제할 결제 내역을 선택하세요.");
+            return;
+        }
+
+        button.disabled = true;
+        const bankTheme = getPhonePaymentBankThemeFromElement(button);
+        try {
+            const grouped = new Map();
+            for (const input of selected) {
+                const resultId = input.dataset.resultId || '';
+                const transactionId = input.dataset.transactionId || '';
+                const target = await getPhonePaymentTransactionEditorTarget(resultId, transactionId);
+                if (!target) {
+                    continue;
+                }
+
+                const key = target.result?.id || resultId;
+                if (!grouped.has(key)) {
+                    grouped.set(key, { result: target.result, transactionIds: new Set(), transactionIndexes: new Set() });
+                }
+                grouped.get(key).transactionIds.add(String(target.transaction?.id || transactionId));
+                grouped.get(key).transactionIndexes.add(target.transactionIndex);
+            }
+
+            let deletedCount = 0;
+            let preferredResult = null;
+            for (const group of grouped.values()) {
+                const transactions = Array.isArray(group.result?.phone?.payment?.transactions) ? group.result.phone.payment.transactions : [];
+                const before = transactions.length;
+                group.result.phone.payment.transactions = transactions.filter((transaction, transactionIndex) => {
+                    return !group.transactionIds.has(String(transaction?.id || '')) && !group.transactionIndexes.has(transactionIndex);
+                });
+                const removed = before - group.result.phone.payment.transactions.length;
+                if (!removed) {
+                    continue;
+                }
+
+                deletedCount += removed;
+                if (!group.result.phone.payment.transactions.length) {
+                    await deletePhonePaymentResultFile(group.result);
+                    continue;
+                }
+
+                updatePhonePaymentTranslationFlag(group.result);
+                group.result.updated_at = new Date().toISOString();
+                await updateResult(group.result);
+                preferredResult = group.result;
+            }
+
+            if (!deletedCount) {
+                toastr.warning("삭제할 결제 내역을 찾을 수 없습니다.");
+                return;
+            }
+
+            await refreshPhonePaymentViewerAfterDelete(preferredResult, { bankTheme });
+            toastr.success("선택한 결제 내역을 삭제했습니다.");
+        } catch (error) {
+            toastr.error(error?.message || "결제 내역 삭제에 실패했습니다.");
+        } finally {
+            button.disabled = false;
+        }
+    }
+
+    async function deleteAllPhonePaymentTransactions(button) {
+        const ok = await globalThis.SillyTavern?.getContext?.().Popup?.show?.confirm?.("현재 은행 결제 내역을 모두 삭제하시겠습니까?", "되돌릴 수 없습니다.");
+        if (!ok) {
+            return;
+        }
+
+        button.disabled = true;
+        const bankTheme = getPhonePaymentBankThemeFromElement(button);
+        try {
+            const chatPk = state.activeIndex?.chat_pk || state.activeResult?.chat_pk || ensureChatPk(getContextSafe());
+            const latestIndex = await loadIndex(chatPk);
+            const targetIds = new Set();
+            for (const item of latestIndex.items.filter(item => getItemReactionMode(item) === 'phone' && getItemViewKey(item) === 'phone:paymentHistory')) {
+                const result = await readJson(item.path);
+                if (normalizePhonePaymentBankTheme(result?.phone?.payment?.bank_theme) !== bankTheme) {
+                    continue;
+                }
+                targetIds.add(item.id);
+                await deleteFile(item.path);
+            }
+
+            if (!targetIds.size) {
+                toastr.warning("삭제할 결제 내역을 찾을 수 없습니다.");
+                return;
+            }
+
+            latestIndex.items = latestIndex.items.filter(item => !targetIds.has(item.id));
+            await saveIndex(latestIndex);
+            await refreshPhonePaymentViewerAfterDelete(null, { index: latestIndex, bankTheme });
+            toastr.success("현재 은행 결제 내역을 모두 삭제했습니다.");
+        } catch (error) {
+            toastr.error(error?.message || "결제 내역 삭제에 실패했습니다.");
+        } finally {
+            button.disabled = false;
+        }
+    }
+
+    function updatePhonePaymentTranslationFlag(result) {
+        if (!result?.phone?.payment) {
+            return;
+        }
+        const transactions = Array.isArray(result.phone.payment.transactions) ? result.phone.payment.transactions : [];
+        result.phone.payment.has_translation = transactions.some(transaction => Boolean(transaction.description_translation || transaction.detail_note_translation));
+    }
+
+    async function deletePhonePaymentResultFile(result) {
+        const chatPk = result?.chat_pk || state.activeIndex?.chat_pk || ensureChatPk(getContextSafe());
+        const latestIndex = await loadIndex(chatPk);
+        const item = latestIndex.items.find(entry => entry.id === result?.id);
+        if (item?.path) {
+            await deleteFile(item.path);
+        }
+        latestIndex.items = latestIndex.items.filter(entry => entry.id !== result?.id);
+        await saveIndex(latestIndex);
+        return latestIndex;
+    }
+
+    async function refreshPhonePaymentViewerAfterDelete(preferredResult = null, options = {}) {
+        const chatPk = preferredResult?.chat_pk || options.index?.chat_pk || state.activeIndex?.chat_pk || ensureChatPk(getContextSafe());
+        const latestIndex = options.index || await loadIndex(chatPk);
+        state.activeIndex = latestIndex;
+        const apps = await collectPhoneViewerApps(latestIndex, preferredResult, 'paymentHistory');
+        const hasAnyContent = apps.some(app => phone.hasPhoneAppContent(app));
+        if (!hasAnyContent) {
+            closeViewer();
+            return false;
+        }
+
+        const hasPayment = apps.some(app => app?.app_id === 'paymentHistory' && phone.hasPhoneAppContent(app));
+        const activeAppId = hasPayment ? 'paymentHistory' : (apps[0]?.app_id || 'googleSearch');
+        const modal = state.viewerModal;
+        if (!modal) {
+            return false;
+        }
+
+        replacePhoneViewerPopupContent(modal, phone.buildPhoneViewerHtml({ apps, activeAppId }));
+        bindPhoneViewerDynamicContent(modal);
+        if (hasPayment) {
+            openPhoneAppById(modal, 'paymentHistory', { paymentBankTheme: options.bankTheme || '' });
+        } else {
+            showPhoneHome(modal);
+        }
+        return hasPayment;
     }
 
     function bindPhonePaymentScrollAreas(modal) {
@@ -2919,6 +3596,343 @@ globalThis.CommunityReactionsExtension = (() => {
         });
     }
 
+
+
+    async function openPhoneGoogleResultEditor(button) {
+        const row = button.closest('.crx-phone-google-result');
+        const target = await getPhoneGoogleResultEditorTarget({
+            resultId: button.dataset.sourceResultId || row?.dataset.sourceResultId || '',
+            searchId: button.dataset.searchId || row?.dataset.searchId || '',
+            googleResultId: button.dataset.googleResultId || row?.dataset.googleResultId || '',
+            searchIndex: readPhoneEditorIndex(button.dataset.searchIndex || row?.dataset.searchIndex),
+            googleResultIndex: readPhoneEditorIndex(button.dataset.googleResultIndex || row?.dataset.googleResultIndex),
+        });
+        if (!target) {
+            toastr.error("수정할 검색 결과를 찾을 수 없습니다.");
+            return;
+        }
+
+        closePostEditor();
+        const modal = createModal(templates.buildGoogleResultEditorHtml(target.googleResult, target.search, target.result), 'crx-post-editor-modal');
+        state.postEditorModal = modal;
+        const root = modal.querySelector('.crx-post-editor');
+        modal.querySelector('.crx-modal-backdrop').addEventListener('click', closePostEditor);
+        root.querySelector('#crx-cancel-post-edit').addEventListener('click', closePostEditor);
+        root.querySelector('#crx-save-post-edit').addEventListener('click', () => void handleSavePhoneGoogleResultEditor(root, target));
+    }
+
+    async function getPhoneGoogleResultEditorTarget(query) {
+        const direct = await getPhoneGoogleResultTargetFromResultId(query.resultId, query);
+        if (direct) {
+            return direct;
+        }
+
+        const items = (state.activeIndex?.items || [])
+            .filter(item => getItemReactionMode(item) === 'phone' && getItemViewKey(item) === 'phone:googleSearch');
+        for (const item of items) {
+            const target = await getPhoneGoogleResultTargetFromResultId(item.id, query);
+            if (target) {
+                return target;
+            }
+        }
+        return null;
+    }
+
+    async function getPhoneGoogleResultTargetFromResultId(resultId, query) {
+        if (!resultId) {
+            return null;
+        }
+        let result = state.activeResult?.id === resultId ? state.activeResult : null;
+        if (!result) {
+            const item = (state.activeIndex?.items || []).find(entry => entry.id === resultId);
+            if (!item?.path) {
+                return null;
+            }
+            result = await readJson(item.path);
+        }
+        return findPhoneGoogleResultTarget(result, query);
+    }
+
+    function findPhoneGoogleResultTarget(result, query) {
+        const searches = Array.isArray(result?.phone?.searches) ? result.phone.searches : [];
+        let searchIndex = searches.findIndex(search => String(search.id || '') === String(query.searchId || ''));
+        if (searchIndex < 0 && query.searchIndex >= 0 && query.searchIndex < searches.length) {
+            searchIndex = query.searchIndex;
+        }
+        if (searchIndex < 0) {
+            return null;
+        }
+
+        const search = searches[searchIndex];
+        const googleResults = Array.isArray(search?.results) ? search.results : [];
+        let googleResultIndex = googleResults.findIndex(resultItem => String(resultItem.id || '') === String(query.googleResultId || ''));
+        if (googleResultIndex < 0 && query.googleResultIndex >= 0 && query.googleResultIndex < googleResults.length) {
+            googleResultIndex = query.googleResultIndex;
+        }
+        if (googleResultIndex < 0) {
+            return null;
+        }
+        return { result, search, googleResult: googleResults[googleResultIndex], searchIndex, googleResultIndex };
+    }
+
+    function readPhoneEditorIndex(value) {
+        const number = Number(value);
+        return Number.isInteger(number) && number >= 0 ? number : -1;
+    }
+
+
+    function getPhoneGoogleQueryFromDataset(element) {
+        const page = element.closest?.('.crx-phone-google-page');
+        return {
+            resultId: element.dataset.sourceResultId || page?.dataset.sourceResultId || '',
+            searchId: element.dataset.searchId || page?.dataset.sourceSearchId || '',
+            mergedSearchId: page?.dataset.searchId || '',
+            googleResultId: element.dataset.googleResultId || '',
+            searchIndex: readPhoneEditorIndex(element.dataset.searchIndex || page?.dataset.searchIndex),
+            googleResultIndex: readPhoneEditorIndex(element.dataset.googleResultIndex),
+        };
+    }
+
+    async function deleteSelectedPhoneGoogleResults(button) {
+        const page = button.closest('.crx-phone-google-page') || button.closest('.crx-phone-google-app')?.querySelector('.crx-phone-google-page.is-active');
+        const selected = [...(page?.querySelectorAll('.crx-phone-google-result-check input:checked') || [])];
+        if (!selected.length) {
+            toastr.warning("삭제할 검색 결과를 선택하세요.");
+            return;
+        }
+
+        button.disabled = true;
+        try {
+            const grouped = new Map();
+            for (const input of selected) {
+                const query = getPhoneGoogleQueryFromDataset(input);
+                const target = await getPhoneGoogleSearchTarget(query);
+                if (!target) {
+                    continue;
+                }
+
+                const key = getPhoneGoogleSearchGroupKey(target);
+                if (!grouped.has(key)) {
+                    grouped.set(key, { target, resultIds: new Set(), resultIndexes: new Set() });
+                }
+                const group = grouped.get(key);
+                if (query.googleResultId) {
+                    group.resultIds.add(String(query.googleResultId));
+                }
+                if (query.googleResultIndex >= 0) {
+                    group.resultIndexes.add(query.googleResultIndex);
+                }
+            }
+
+            let deletedCount = 0;
+            let preferredResult = null;
+            for (const group of grouped.values()) {
+                const results = Array.isArray(group.target.search?.results) ? group.target.search.results : [];
+                const before = results.length;
+                group.target.search.results = results.filter((resultItem, resultIndex) => {
+                    return !group.resultIds.has(String(resultItem?.id || '')) && !group.resultIndexes.has(resultIndex);
+                });
+                deletedCount += before - group.target.search.results.length;
+                if (before !== group.target.search.results.length) {
+                    group.target.result.updated_at = new Date().toISOString();
+                    await updateResult(group.target.result);
+                    preferredResult = group.target.result;
+                }
+            }
+
+            if (!deletedCount) {
+                toastr.warning("삭제할 검색 결과를 찾을 수 없습니다.");
+                return;
+            }
+
+            await refreshPhoneGoogleViewerAfterDelete(preferredResult, { searchId: page?.dataset.searchId || '' });
+            toastr.success("선택한 검색 결과를 삭제했습니다.");
+        } catch (error) {
+            toastr.error(error?.message || "검색 결과 삭제에 실패했습니다.");
+        } finally {
+            button.disabled = false;
+        }
+    }
+
+    async function deleteAllPhoneGoogleResults(button) {
+        const ok = await globalThis.SillyTavern?.getContext?.().Popup?.show?.confirm?.("전체 검색 결과를 삭제하시겠습니까?", "검색 기록과 검색 결과가 함께 삭제됩니다.");
+        if (!ok) {
+            return;
+        }
+
+        button.disabled = true;
+        const page = button.closest('.crx-phone-google-page');
+        try {
+            const target = await getPhoneGoogleSearchTarget(getPhoneGoogleQueryFromDataset(button));
+            if (!target) {
+                toastr.warning("삭제할 검색 결과를 찾을 수 없습니다.");
+                return;
+            }
+
+            const results = Array.isArray(target.search?.results) ? target.search.results : [];
+            if (!results.length) {
+                toastr.info("검색 결과를 찾을 수 없습니다.");
+                return;
+            }
+
+            target.search.results = [];
+            target.result.updated_at = new Date().toISOString();
+            await updateResult(target.result);
+            await refreshPhoneGoogleViewerAfterDelete(target.result, { searchId: page?.dataset.searchId || '' });
+            toastr.success("전체 검색 결과를 삭제했습니다.");
+        } catch (error) {
+            toastr.error(error?.message || "검색 결과 삭제에 실패했습니다.");
+        } finally {
+            button.disabled = false;
+        }
+    }
+
+    async function deletePhoneGoogleHistorySearch(button) {
+        const ok = await globalThis.SillyTavern?.getContext?.().Popup?.show?.confirm?.("해당 항목을 삭제하시겠습니까?", "검색 기록과 검색 결과가 함께 삭제됩니다.");
+        if (!ok) {
+            return;
+        }
+
+        button.disabled = true;
+        try {
+            const target = await getPhoneGoogleSearchTarget(getPhoneGoogleQueryFromDataset(button));
+            if (!target) {
+                toastr.warning("삭제할 검색 기록을 찾을 수 없습니다.");
+                return;
+            }
+
+            const searches = Array.isArray(target.result?.phone?.searches) ? target.result.phone.searches : [];
+            searches.splice(target.searchIndex, 1);
+            if (!searches.length) {
+                const latestIndex = await deletePhoneGoogleResultFile(target.result);
+                await refreshPhoneGoogleViewerAfterDelete(null, { index: latestIndex });
+            } else {
+                target.result.updated_at = new Date().toISOString();
+                await updateResult(target.result);
+                await refreshPhoneGoogleViewerAfterDelete(target.result);
+            }
+            toastr.success("검색 기록을 삭제했습니다.");
+        } catch (error) {
+            toastr.error(error?.message || "검색 기록 삭제에 실패했습니다.");
+        } finally {
+            button.disabled = false;
+        }
+    }
+
+    function getPhoneGoogleSearchGroupKey(target) {
+        return String(target.result?.id || '') + '::' + String(target.searchIndex);
+    }
+
+    async function getPhoneGoogleSearchTarget(query) {
+        const direct = await getPhoneGoogleSearchTargetFromResultId(query.resultId, query);
+        if (direct) {
+            return direct;
+        }
+
+        const items = (state.activeIndex?.items || [])
+            .filter(item => getItemReactionMode(item) === 'phone' && getItemViewKey(item) === 'phone:googleSearch');
+        for (const item of items) {
+            const target = await getPhoneGoogleSearchTargetFromResultId(item.id, query);
+            if (target) {
+                return target;
+            }
+        }
+        return null;
+    }
+
+    async function getPhoneGoogleSearchTargetFromResultId(resultId, query) {
+        if (!resultId) {
+            return null;
+        }
+
+        let result = state.activeResult?.id === resultId ? state.activeResult : null;
+        if (!result) {
+            const item = (state.activeIndex?.items || []).find(entry => entry.id === resultId);
+            if (!item?.path) {
+                return null;
+            }
+            result = await readJson(item.path);
+        }
+        return findPhoneGoogleSearchTarget(result, query);
+    }
+
+    function findPhoneGoogleSearchTarget(result, query) {
+        const searches = Array.isArray(result?.phone?.searches) ? result.phone.searches : [];
+        let searchIndex = searches.findIndex(search => String(search.id || '') === String(query.searchId || ''));
+        if (searchIndex < 0 && query.searchIndex >= 0 && query.searchIndex < searches.length) {
+            searchIndex = query.searchIndex;
+        }
+        if (searchIndex < 0) {
+            return null;
+        }
+        return { result, search: searches[searchIndex], searchIndex };
+    }
+
+    async function deletePhoneGoogleResultFile(result) {
+        const chatPk = result?.chat_pk || state.activeIndex?.chat_pk || ensureChatPk(getContextSafe());
+        const latestIndex = await loadIndex(chatPk);
+        const item = latestIndex.items.find(entry => entry.id === result?.id);
+        if (item?.path) {
+            await deleteFile(item.path);
+        }
+        latestIndex.items = latestIndex.items.filter(entry => entry.id !== result?.id);
+        await saveIndex(latestIndex);
+        return latestIndex;
+    }
+
+    async function refreshPhoneGoogleViewerAfterDelete(preferredResult = null, options = {}) {
+        const chatPk = preferredResult?.chat_pk || options.index?.chat_pk || state.activeIndex?.chat_pk || ensureChatPk(getContextSafe());
+        const latestIndex = options.index || await loadIndex(chatPk);
+        state.activeIndex = latestIndex;
+        const apps = await collectPhoneViewerApps(latestIndex, preferredResult, 'googleSearch');
+        if (!apps.some(app => phone.hasPhoneAppContent(app))) {
+            closeViewer();
+            return false;
+        }
+
+        const modal = state.viewerModal;
+        if (!modal) {
+            return false;
+        }
+
+        replacePhoneViewerPopupContent(modal, phone.buildPhoneViewerHtml({ apps, activeAppId: 'googleSearch' }));
+        bindPhoneViewerDynamicContent(modal);
+
+        const hasGoogle = apps.some(app => app?.app_id === 'googleSearch' && phone.hasPhoneAppContent(app));
+        if (hasGoogle) {
+            openPhoneAppById(modal, 'googleSearch');
+            if (options.searchId) {
+                openPhoneGoogleSearchById(modal, options.searchId);
+            }
+        } else {
+            showPhoneHome(modal);
+        }
+        return hasGoogle;
+    }
+
+    function applyPhoneGoogleResultEditorValues(root, googleResult) {
+        googleResult.title = readPostEditorString(root, 'crx-edit-google-title') || googleResult.title || '';
+        googleResult.url = readPostEditorString(root, 'crx-edit-google-url') || googleResult.url || '';
+        googleResult.snippet = readPostEditorText(root, 'crx-edit-google-snippet').trim() || googleResult.snippet || '';
+    }
+
+    async function handleSavePhoneGoogleResultEditor(root, target) {
+        const button = root.querySelector('#crx-save-post-edit');
+        try {
+            button.disabled = true;
+            applyPhoneGoogleResultEditorValues(root, target.googleResult);
+            target.result.updated_at = new Date().toISOString();
+            await updateResult(target.result);
+            const refreshedIndex = await loadIndex(target.result.chat_pk);
+            closePostEditor();
+            await openPhoneViewer(target.result, refreshedIndex, 'phone:googleSearch');
+            toastr.success("저장했습니다.");
+        } catch (error) {
+            toastr.error(error?.message || "검색 결과 저장에 실패했습니다.");
+        } finally {
+            button.disabled = false;
+        }
+    }
 
     async function openPhonePaymentTransactionEditor(button) {
         const row = button.closest('.crx-phone-payment-transaction');

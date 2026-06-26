@@ -19,7 +19,7 @@
     }
 
     &.is-bofa {
-        background: linear-gradient(145deg, #d71920 0%, #0a4ea3 100%);
+        background: url('assets/BofA.png') #000000 no-repeat center / 100%;
     }
 
     &.is-kb {
@@ -39,18 +39,38 @@
     background: var(--crx-pay-bg);
     color: var(--crx-pay-ink);
 
-    &.is-bofa {
+    &.is-bofa,
+    & .crx-phone-payment-bank-screen.is-bofa {
         --crx-pay-bg: #f3f6fb;
         --crx-pay-accent: #d71920;
         --crx-pay-accent-2: #064c9b;
         --crx-pay-header: linear-gradient(140deg, #d71920 0%, #064c9b 100%);
     }
 
-    &.is-kb {
+    &.is-kb,
+    & .crx-phone-payment-bank-screen.is-kb {
         --crx-pay-bg: #efefef;
         --crx-pay-accent: #ffd136;
         --crx-pay-accent-2: #3f3828;
         --crx-pay-header: linear-gradient(140deg, #ffd338 0%, #3f3828 100%);
+    }
+
+    & .crx-phone-payment-bank-screen {
+        display: none;
+        height: 100%;
+        background: var(--crx-pay-bg);
+        color: var(--crx-pay-ink);
+    }
+
+    & .crx-phone-payment-bank-screen.is-active-bank {
+        display: block;
+    }
+
+    & .crx-phone-payment-header-bofa,
+    & .crx-phone-payment-summary-bofa,
+    & .crx-phone-payment-header-kb,
+    & .crx-phone-payment-summary-kb {
+        letter-spacing: 0;
     }
 
     &.is-translation-visible {
@@ -80,54 +100,19 @@
         gap: 12px;
         min-height: 128px;
         padding: 58px 18px 10px;
-        /* background: var(--crx-pay-header); */
-        /* box-shadow: 0 10px 24px var(--crx-pay-shadow); */
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        & div {
+        & div.crx-phone-payment-header-copy {
             display: grid;
             gap: 4px;
             min-width: 0;
+        }
+
+        & div:not(.crx-phone-payment-header-copy) {
+            display: grid;
+            grid-template-columns: auto auto;
+            gap: 4px;
+            min-width: 0;
+            flex: 0 0 auto;
         }
 
         & span {
@@ -139,20 +124,21 @@
         & strong {
             font-size: 1.45rem;
             line-height: 1.15;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
     }
 
     & .crx-phone-payment-translate {
         flex: 0 0 auto;
-        border: 1px solid rgba(255, 255, 255, 0.5);
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.18);
-        color: #ffffff;
-        padding: 7px 10px;
         font: inherit;
         font-size: 0.76rem;
-        font-weight: 800;
         cursor: pointer;
+        display: inline-grid;
+        place-items: center;
+        border: none;
+        background: transparent;
     }
 
     & .crx-phone-payment-summary {
@@ -247,8 +233,6 @@
             right: -8px;
             display: inline-grid;
             place-items: center;
-            width: 28px;
-            height: 28px;
             border: 0;
             border-radius: 999px;
             background: transparent;
@@ -341,4 +325,62 @@
             display: none;
         }
     }
+}
+
+.crx-phone-payment-app .crx-phone-payment-deletebar {
+    display: none;
+    gap: 8px;
+    justify-content: flex-end;
+    padding: 0 14px 10px;
+}
+
+.crx-phone-payment-app.is-delete-mode .crx-phone-payment-bank-screen.is-active-bank .crx-phone-payment-deletebar {
+    display: flex;
+}
+
+.crx-phone-payment-app .crx-phone-payment-deletebar button {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 32px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--crx-pay-panel);
+    color: var(--crx-pay-accent-2);
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 800;
+    padding: 0 10px;
+    cursor: pointer;
+}
+
+.crx-phone-payment-app .crx-phone-payment-deletebar .crx-phone-payment-delete-all {
+    color: #d33b3b;
+}
+
+.crx-phone-payment-app .crx-phone-payment-menu {
+    border: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+}
+
+.crx-phone-payment-app .crx-phone-payment-menu.is-active {
+    color: #d33b3b;
+}
+
+.crx-phone-payment-app .crx-phone-payment-transaction-check {
+    display: none;
+    position: absolute;
+    top: 24px;
+    left: -2px;
+    z-index: 2;
+}
+
+.crx-phone-payment-app.is-delete-mode .crx-phone-payment-bank-screen.is-active-bank .crx-phone-payment-transaction-check {
+    display: block;
+}
+
+.crx-phone-payment-app.is-delete-mode .crx-phone-payment-bank-screen.is-active-bank .crx-phone-payment-transaction {
+    padding-left: 28px;
 }
