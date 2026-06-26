@@ -14,8 +14,8 @@ globalThis.CommunityReactionsExtension = (() => {
     const TEMPLATE_SCRIPT_VERSION = '20260625-payment-edit-1';
     const PROMPT_SCRIPT_VERSION = '20260624-custom-country-1';
     const STORAGE_SCRIPT_VERSION = '20260624-custom-country-1';
-    const PHONE_SCRIPT_VERSION = '20260625-phone-ani-2';
-    const PHONE_STYLE_VERSION = '20260625-phone-ani-2';
+    const PHONE_SCRIPT_VERSION = '20260626-payment-bofa-copy-1';
+    const PHONE_STYLE_VERSION = '20260625-google-logo-1';
     const PHONE_PAYMENT_STYLE_VERSION = '20260625-payment-edit-1';
     const PHONE_MODULE_SCRIPT_GROUPS = Object.freeze([
         Object.freeze(['phone-registry.js']),
@@ -133,6 +133,7 @@ globalThis.CommunityReactionsExtension = (() => {
         },
     });
     const PHONE_APP_KEYS = Object.freeze(Object.keys(PHONE_APP_PRESETS));
+    const PHONE_VIEWER_ITEMS_PER_APP = 16;
     const ADD_OPTION_VALUE = '__add__';
 
     const CUSTOM_COUNTRY_KEY = 'custom';
@@ -2604,8 +2605,39 @@ globalThis.CommunityReactionsExtension = (() => {
             return;
         }
 
-        const first = await readJson(firstItem.path);
-        await openViewer(first, index, getItemViewKey(firstItem));
+        openViewerFromItem(firstItem, index, getItemViewKey(firstItem));
+    }
+
+    function openViewerFromItem(item, index = null, viewKey = null) {
+        if (!item) {
+            return;
+        }
+        if (getItemReactionMode(item) === 'phone') {
+            void openPhoneViewerFromItem(item, index, viewKey);
+            return;
+        }
+
+        closeViewer();
+        const actualIndex = index || { items: [item] };
+        const activeViewKey = viewKey || getItemViewKey(item);
+        state.activeResult = null;
+        state.activeIndex = actualIndex;
+        state.activeViewKey = activeViewKey;
+        resetCommunityState(actualIndex, activeViewKey, item.id);
+        state.activeCommunity = item.site || state.communityItems[0]?.site || '';
+        state.renderedCount = 0;
+        state.deleteMode = false;
+        state.boardDetailPostKey = null;
+        state.boardListScrollTop = 0;
+        state.boardListRenderedCount = 0;
+
+        const modal = createModal(templates.buildViewerHtml(null, actualIndex), 'crx-viewer-modal');
+        state.viewerModal = modal;
+        bindViewer(modal, actualIndex);
+        void renderMorePosts().catch(error => {
+            console.warn('[Community Reactions] Failed to render community viewer.', error);
+            toastr.error('커뮤니티 보기를 불러오지 못했습니다.');
+        });
     }
 
     async function openViewer(result, index = null, viewKey = null) {
@@ -2627,6 +2659,9 @@ globalThis.CommunityReactionsExtension = (() => {
         state.boardDetailPostKey = null;
         state.boardListScrollTop = 0;
         state.boardListRenderedCount = 0;
+        if (result?.id) {
+            state.communityResults.set(result.id, result);
+        }
 
         const modal = createModal(templates.buildViewerHtml(result, actualIndex), 'crx-viewer-modal');
         state.viewerModal = modal;
@@ -2645,8 +2680,18 @@ globalThis.CommunityReactionsExtension = (() => {
             return;
         }
 
-        const first = await readJson(firstItem.path);
-        await openPhoneViewer(first, index, getItemViewKey(firstItem));
+        await openPhoneViewerFromItem(firstItem, index, getItemViewKey(firstItem));
+    }
+
+    async function openPhoneViewerFromItem(item, index = null, viewKey = null) {
+        await initializePhone();
+        if (!item) {
+            return;
+        }
+        const context = getContextSafe();
+        const actualIndex = index || await loadIndex(ensureChatPk(context));
+        const activeAppId = getPhoneAppOrDefault(String(viewKey || getItemViewKey(item)).replace(/^phone:/, '') || item.phone_app_id || item.site);
+        await openPhoneViewer(null, actualIndex, `phone:${activeAppId}`);
     }
 
     async function openPhoneViewer(result, index = null, viewKey = null) {
@@ -2656,113 +2701,210 @@ globalThis.CommunityReactionsExtension = (() => {
         const chatPk = result?.chat_pk || ensureChatPk(context);
         const actualIndex = index || await loadIndex(chatPk);
         const activeAppId = getPhoneAppOrDefault(String(viewKey || getResultViewKey(result)).replace(/^phone:/, '') || result?.generation?.phone_app_id || result?.generation?.site);
-        const apps = await collectPhoneViewerApps(actualIndex, result, activeAppId);
-        if (!apps.some(app => phone.hasPhoneAppContent(app))) {
-            toastr.info('표시할 휴대폰 결과가 없습니다.');
-            return;
-        }
 
         state.activeResult = result;
         state.activeIndex = actualIndex;
         state.activeViewKey = `phone:${activeAppId}`;
         state.activeCommunity = activeAppId;
-        const modal = createModal(phone.buildPhoneViewerHtml({ apps, activeAppId }), 'crx-phone-viewer-modal');
+        const initialApps = getInitialPhoneViewerApps(result, activeAppId);
+        const modal = createModal(phone.buildPhoneViewerHtml({ apps: initialApps, activeAppId }), 'crx-phone-viewer-modal');
         state.viewerModal = modal;
-        bindPhoneViewer(modal);
+        bindPhoneViewerFrame(modal);
+        bindPhoneViewerDynamicContent(modal);
+        void hydratePhoneViewerApps(modal, actualIndex, result, activeAppId);
+    }
+
+    function getInitialPhoneViewerApps(result, activeAppId) {
+        if (result?.generation?.reaction_mode === 'phone') {
+            const activeApp = phone.mergePhoneResults([result], activeAppId);
+            if (phone.hasPhoneAppContent(activeApp)) {
+                return [activeApp];
+            }
+        }
+        return [phone.createEmptyPhoneAppData(activeAppId)];
+    }
+
+    async function hydratePhoneViewerApps(modal, index, preferredResult = null, activeAppId = 'googleSearch') {
+        const apps = await collectPhoneViewerApps(index, preferredResult, activeAppId);
+        if (state.viewerModal !== modal) {
+            return;
+        }
+        if (!apps.some(app => phone.hasPhoneAppContent(app))) {
+            toastr.info('표시할 휴대폰 결과가 없습니다.');
+            return;
+        }
+
+        replacePhoneViewerPopupContent(modal, phone.buildPhoneViewerHtml({ apps, activeAppId }));
+        bindPhoneViewerDynamicContent(modal);
+    }
+
+    function replacePhoneViewerPopupContent(modal, html) {
+        const currentPopup = modal.querySelector('.crx-popup.is-phone-mode');
+        if (!currentPopup) {
+            return;
+        }
+        const currentDevice = currentPopup.querySelector('.crx-phone-device');
+        const activeAppId = currentDevice?.dataset.activeApp || '';
+        const keepAppOpen = Boolean(activeAppId && currentDevice?.classList.contains('is-app-open'));
+
+        const template = document.createElement('template');
+        template.innerHTML = html.trim();
+        const nextPopup = template.content.querySelector('.crx-popup.is-phone-mode');
+        if (!nextPopup) {
+            return;
+        }
+
+        currentPopup.replaceChildren(...Array.from(nextPopup.childNodes));
+        if (keepAppOpen) {
+            openPhoneAppById(modal, activeAppId);
+        }
     }
 
     async function collectPhoneViewerApps(index, preferredResult = null, preferredAppId = 'googleSearch') {
-        const apps = [];
-        for (const appId of PHONE_APP_KEYS) {
+        const apps = await Promise.all(PHONE_APP_KEYS.map(async appId => {
             const items = (index.items || [])
                 .filter(item => getItemReactionMode(item) === 'phone' && getItemViewKey(item) === `phone:${appId}`)
-                .slice(0, 16);
+                .slice(0, PHONE_VIEWER_ITEMS_PER_APP);
             const results = [];
             if (preferredResult?.generation?.reaction_mode === 'phone' && getPhoneAppOrDefault(preferredResult.generation.phone_app_id || preferredResult.generation.site) === appId) {
                 results.push(preferredResult);
             }
-            for (const item of items) {
-                if (results.some(result => result.id === item.id)) {
+
+            const itemResults = await Promise.all(items
+                .filter(item => !results.some(result => result.id === item.id))
+                .map(item => readResultWithIndexMetadata(item)));
+            for (const itemResult of itemResults) {
+                if (!itemResult) {
                     continue;
                 }
-                try {
-                    results.push(await readJson(item.path));
-                } catch (error) {
-                    console.warn('[Community Reactions] Failed to read phone item.', item.path, error);
-                }
+                results.push(itemResult);
             }
             if (results.length || appId === preferredAppId) {
-                apps.push(phone.mergePhoneResults(results, appId));
+                return phone.mergePhoneResults(results, appId);
             }
-        }
+            return null;
+        }));
         return apps.filter(app => phone.hasPhoneAppContent(app));
     }
 
-    function bindPhoneViewer(modal) {
-        const device = modal.querySelector('.crx-phone-device');
+    async function readResultWithIndexMetadata(item) {
+        try {
+            const result = await readJson(item.path);
+            return {
+                ...result,
+                _source_item_id: item.id,
+                _source_item_path: item.path,
+                _source_item_created_at: item.created_at,
+            };
+        } catch (error) {
+            console.warn('[Community Reactions] Failed to read result item.', item.path, error);
+            return null;
+        }
+    }
+
+    function bindPhoneViewerFrame(modal) {
         modal.querySelector('.crx-modal-backdrop')?.addEventListener('click', () => closeViewer({ animatePhone: true }));
-        modal.querySelectorAll('.crx-phone-app-icon').forEach(button => {
-            button.addEventListener('click', () => {
-                if (button.dataset.phoneAction === 'close') {
+
+        modal.addEventListener('click', event => {
+            const target = event.target;
+            const appIcon = closestInModal(target, '.crx-phone-app-icon', modal);
+            if (appIcon) {
+                if (appIcon.dataset.phoneAction === 'close') {
                     closeViewer({ animatePhone: true });
                     return;
                 }
-                const appId = button.dataset.phoneApp || 'googleSearch';
-                device.dataset.activeApp = appId;
-                device.classList.add('is-app-open');
-                modal.querySelectorAll('.crx-phone-app').forEach(app => {
-                    const active = app.dataset.phoneApp === appId;
-                    app.classList.toggle('is-active', active);
-                    if (active) {
-                        app.classList.remove('is-search-open');
-                    }
-                });
-            });
-        });
-        modal.querySelector('#crx-phone-homebar')?.addEventListener('click', () => {
-            device.classList.remove('is-app-open');
-            modal.querySelectorAll('.crx-phone-app').forEach(app => {
-                app.classList.remove('is-active', 'is-search-open');
-            });
-        });
-        modal.querySelectorAll('.crx-phone-google-history-item').forEach(button => {
-            button.addEventListener('click', () => {
-                const app = button.closest('.crx-phone-google-app');
-                const searchId = button.dataset.searchId || '';
-                app?.querySelectorAll('.crx-phone-google-page').forEach(page => {
-                    page.classList.toggle('is-active', page.dataset.searchId === searchId);
-                });
-                app?.classList.add('is-search-open');
-            });
-        });
-        modal.querySelectorAll('.crx-phone-google-querybar').forEach(button => {
-            button.addEventListener('click', () => {
-                button.closest('.crx-phone-google-app')?.classList.remove('is-search-open');
-            });
-        });
-        bindPhonePaymentApps(modal);
-    }
-
-    function bindPhonePaymentApps(modal) {
-        modal.querySelectorAll('.crx-phone-payment-translate').forEach(button => {
-            button.addEventListener('click', () => {
-                const app = button.closest('.crx-phone-payment-app');
-                const active = app?.classList.toggle('is-translation-visible') || false;
-                button.setAttribute('aria-pressed', String(active));
-                button.textContent = active ? '원문 보기' : '번역 보기';
-            });
-        });
-
-        modal.addEventListener('click', event => {
-            const editButton = event.target.closest?.('.crx-phone-payment-edit');
-            if (!editButton || !modal.contains(editButton)) {
+                openPhoneAppFromIcon(modal, appIcon);
                 return;
             }
-            event.preventDefault();
-            event.stopPropagation();
-            void openPhonePaymentTransactionEditor(editButton);
-        });
 
+            const homebar = closestInModal(target, '#crx-phone-homebar', modal);
+            if (homebar) {
+                showPhoneHome(modal);
+                return;
+            }
+
+            const historyItem = closestInModal(target, '.crx-phone-google-history-item', modal);
+            if (historyItem) {
+                openPhoneGoogleSearch(historyItem);
+                return;
+            }
+
+            const querybar = closestInModal(target, '.crx-phone-google-querybar', modal);
+            if (querybar) {
+                querybar.closest('.crx-phone-google-app')?.classList.remove('is-search-open');
+                return;
+            }
+
+            const translateButton = closestInModal(target, '.crx-phone-payment-translate', modal);
+            if (translateButton) {
+                togglePhonePaymentTranslation(translateButton);
+                return;
+            }
+
+            const editButton = closestInModal(target, '.crx-phone-payment-edit', modal);
+            if (editButton) {
+                event.preventDefault();
+                event.stopPropagation();
+                void openPhonePaymentTransactionEditor(editButton);
+            }
+        });
+    }
+
+    function closestInModal(target, selector, modal) {
+        const element = typeof target?.closest === 'function' ? target : target?.parentElement;
+        const match = element?.closest?.(selector);
+        return match && modal.contains(match) ? match : null;
+    }
+
+    function bindPhoneViewerDynamicContent(modal) {
+        bindPhonePaymentScrollAreas(modal);
+    }
+
+    function openPhoneAppFromIcon(modal, button) {
+        openPhoneAppById(modal, button.dataset.phoneApp || 'googleSearch');
+    }
+
+    function openPhoneAppById(modal, appId) {
+        const device = modal.querySelector('.crx-phone-device');
+        if (!device) {
+            return;
+        }
+        device.dataset.activeApp = appId;
+        device.classList.add('is-app-open');
+        modal.querySelectorAll('.crx-phone-app').forEach(app => {
+            const active = app.dataset.phoneApp === appId;
+            app.classList.toggle('is-active', active);
+            if (active) {
+                app.classList.remove('is-search-open');
+            }
+        });
+    }
+
+    function showPhoneHome(modal) {
+        const device = modal.querySelector('.crx-phone-device');
+        device?.classList.remove('is-app-open');
+        modal.querySelectorAll('.crx-phone-app').forEach(app => {
+            app.classList.remove('is-active', 'is-search-open');
+        });
+    }
+
+    function openPhoneGoogleSearch(button) {
+        const app = button.closest('.crx-phone-google-app');
+        const searchId = button.dataset.searchId || '';
+        app?.querySelectorAll('.crx-phone-google-page').forEach(page => {
+            page.classList.toggle('is-active', page.dataset.searchId === searchId);
+        });
+        app?.classList.add('is-search-open');
+    }
+
+    function togglePhonePaymentTranslation(button) {
+        const app = button.closest('.crx-phone-payment-app');
+        const active = app?.classList.toggle('is-translation-visible') || false;
+        button.setAttribute('aria-pressed', String(active));
+        button.textContent = active ? '원문 보기' : '번역 보기';
+    }
+
+    function bindPhonePaymentScrollAreas(modal) {
         modal.querySelectorAll('.crx-phone-payment-scroll').forEach(scrollArea => {
             const list = scrollArea.querySelector('.crx-phone-payment-list');
             if (!list) {
@@ -2887,12 +3029,14 @@ globalThis.CommunityReactionsExtension = (() => {
         const pageSize = clampInteger(list.dataset.pageSize, 1, 50, 10);
         const rendered = clampInteger(list.dataset.rendered, 0, transactions.length, 0);
         const nextItems = transactions.slice(rendered, rendered + pageSize);
+        const showWonUnit = list.dataset.showWonUnit === 'true';
+        const bankTheme = list.dataset.bankTheme || (showWonUnit ? 'kbKookmin' : 'bankOfAmerica');
         if (!nextItems.length) {
             list.closest('.crx-phone-payment-card')?.querySelector('.crx-phone-payment-more')?.classList.add('is-hidden');
             return;
         }
 
-        list.insertAdjacentHTML('beforeend', phone.renderPaymentTransactionBatch(nextItems));
+        list.insertAdjacentHTML('beforeend', phone.renderPaymentTransactionBatch(nextItems, showWonUnit, bankTheme));
         const nextRendered = rendered + nextItems.length;
         list.dataset.rendered = String(nextRendered);
         list.closest('.crx-phone-payment-card')?.querySelector('.crx-phone-payment-more')?.classList.toggle('is-hidden', nextRendered >= transactions.length);
@@ -3309,7 +3453,7 @@ globalThis.CommunityReactionsExtension = (() => {
         const item = state.communityItems[state.communityItemCursor];
         state.communityItemCursor += 1;
 
-        const result = await readJson(item.path);
+        const result = state.communityResults.get(item.id) || await readJson(item.path);
         state.communityResults.set(result.id, result);
         state.activeResult = result;
         state.activeCommunity = result.generation?.site || item.site || state.activeCommunity;
@@ -3355,7 +3499,13 @@ globalThis.CommunityReactionsExtension = (() => {
             state.isLoadingCommunity = false;
         }
 
+        if (!state.viewerModal || !state.activeCommunity) {
+            return;
+        }
         const list = state.viewerModal.querySelector('#crx-post-list');
+        if (!list) {
+            return;
+        }
         const renderer = getCommunityRenderer();
         if (renderer.viewType === 'board') {
             renderBoardList();

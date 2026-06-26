@@ -3,7 +3,7 @@
     "loading_order": 101,
     "requires": [],
     "optional": ["connection-manager"],
-    "js": "index.js?v=20260625-2",
+    "js": "index.js?v=20260626-1",
     "css": "style.css?v=20260624-1",
     "author": "blank242",
     "version": "2.0",

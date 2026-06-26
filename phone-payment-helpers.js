@@ -126,18 +126,26 @@ globalThis.CommunityReactionsPhonePayment = (() => {
 
         function formatPaymentTime(value, input) {
             const date = new Date(value);
-            const countryKey = typeof input === 'string' ? input : input?.site_country;
-            const customCountry = typeof input === 'string' ? '' : input?.custom_site_country;
-            const locale = countryKey === 'usa' || isAmericanCountryInput(input) ? 'en-US'
-                : countryKey === 'japan' || /(일본|japan)/i.test(customCountry || '') ? 'ja-JP'
-                    : countryKey === 'china' || /(중국|china|대만|taiwan|홍콩|hong kong)/i.test(customCountry || '') ? 'zh-CN'
-                        : 'ko-KR';
-            return date.toLocaleString(locale, {
-                month: 'numeric',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-            });
+            if (Number.isNaN(date.getTime())) {
+                return '';
+            }
+            const time = [
+                date.getHours(),
+                date.getMinutes(),
+                date.getSeconds(),
+            ].map(padDatePart).join(':');
+            if (isAmericanCountryInput(input)) {
+                return `${padDatePart(date.getDate())} ${getEnglishMonth(date)} ${time}`;
+            }
+            return `${padDatePart(date.getMonth() + 1)}.${padDatePart(date.getDate())} ${time}`;
+        }
+
+        function getEnglishMonth(date) {
+            return ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'][date.getMonth()];
+        }
+
+        function padDatePart(value) {
+            return String(value).padStart(2, '0');
         }
 
         function normalizeMoney(value, currency, fallbackAmount = 0) {

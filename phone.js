@@ -39,6 +39,7 @@ globalThis.CommunityReactionsPhone = (() => {
             normalizeHome: home.normalizeHome,
             normalizeUrl,
             sanitizeId,
+            getPhoneResultTime,
             sortPhoneResultsNewest,
         };
         const appModules = registry.getAppFactories()
@@ -251,8 +252,8 @@ Follow it when it does not conflict with the JSON schema.`
             return getAppModule('googleSearch')?.mergeResults(results, appId) || createEmptyPhoneAppData(appId);
         }
 
-        function renderPaymentTransactionBatch(transactions) {
-            return getAppModule('paymentHistory', false)?.renderPaymentTransactionBatch(transactions) || '';
+        function renderPaymentTransactionBatch(transactions, showWonUnit = true, bankTheme = showWonUnit ? 'kbKookmin' : 'bankOfAmerica') {
+            return getAppModule('paymentHistory', false)?.renderPaymentTransactionBatch(transactions, showWonUnit, bankTheme) || '';
         }
 
         function hasPhoneAppContent(app) {
@@ -264,7 +265,22 @@ Follow it when it does not conflict with the JSON schema.`
             return (Array.isArray(results) ? results : [])
                 .filter(Boolean)
                 .slice()
-                .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+                .sort((a, b) => getPhoneResultTime(b) - getPhoneResultTime(a));
+        }
+
+        function getPhoneResultTime(result) {
+            const candidates = [
+                result?.created_at,
+                result?.generation?.created_at,
+                result?._source_item_created_at,
+            ];
+            for (const value of candidates) {
+                const time = Date.parse(value);
+                if (Number.isFinite(time)) {
+                    return time;
+                }
+            }
+            return 0;
         }
 
         function normalizeUrl(value) {

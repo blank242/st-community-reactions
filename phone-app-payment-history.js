@@ -14,6 +14,7 @@
         const {
             escapeHtml,
             getPhoneAppPreset,
+            getPhoneResultTime,
             sortPhoneResultsNewest,
         } = context;
         const payment = paymentFactory(context);
@@ -28,6 +29,7 @@
         } = payment;
 
         const PAYMENT_EDIT_ARIA_LABEL = '결제 내역 수정';
+        const BOFA_MONTHS = Object.freeze(['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']);
 
         function buildPaymentHistoryPrompt(input, context) {
             const {
@@ -80,6 +82,8 @@ Payment history rules:
 - If the in-story current date/time is clear, transaction times must be recent relative to that in-story time. If it is not clear, use the current real timestamp as the fallback reference.
 - Use realistic merchants, subscriptions, transport, food, supplies, medical, hobby, work, or story-specific expenses when appropriate.
 - Amounts, time format, wording, and context must match the character nationality/culture.
+- For Bank of America, "time_label" must use "DD MMM hh:mm:ss", such as "23 MAR 13:02:44".
+- For KB Kookmin, "time_label" must use "MM.DD hh:mm:ss", such as "03.23 13:02:44".
 ${translationRule}
 - Use ${theme === 'bankOfAmerica' ? '"bankOfAmerica"' : '"kbKookmin"'} as "bank_theme".
 - Set "currency_code" and "currency_symbol" to the correct local currency for ${countryLabel}; for American characters, use "USD" and "$".
@@ -134,32 +138,35 @@ Rules:
             const payment = app.payment || createEmptyPaymentData().payment;
             const transactions = Array.isArray(payment.transactions) ? payment.transactions : [];
             const initialTransactions = transactions.slice(0, PAYMENT_PAGE_SIZE);
-            const themeClass = payment.bank_theme === 'bankOfAmerica' ? 'is-bofa' : 'is-kb';
+            const bankTheme = payment.bank_theme === 'bankOfAmerica' ? 'bankOfAmerica' : 'kbKookmin';
+            const themeClass = bankTheme === 'bankOfAmerica' ? 'is-bofa' : 'is-kb';
+            const showWonUnit = bankTheme === 'kbKookmin';
             const hasTranslation = Boolean(payment.has_translation || transactions.some(transaction => transaction.description_translation || transaction.detail_note_translation));
             const encodedTransactions = escapeHtml(encodeURIComponent(JSON.stringify(transactions)));
             const ownerName = String(payment.character_name || app.character_name || '{{char}}').trim();
+            const copy = getPaymentCopy(bankTheme, ownerName, transactions.length);
 
             return `
         <section class="crx-phone-app crx-phone-payment-app ${themeClass}" data-phone-app="paymentHistory">
             <div class="crx-phone-payment-scroll">
                 <header class="crx-phone-payment-header">
                     <div>
-                        <span>${escapeHtml(payment.bank_label || PAYMENT_BANKS.kbKookmin.label)}</span>
-                        <strong>${escapeHtml(ownerName)} 님</strong>
+                        <span>${escapeHtml(payment.bank_label || PAYMENT_BANKS[bankTheme].label)}</span>
+                        <strong>${escapeHtml(copy.owner)}</strong>
                     </div>
                     <button class="crx-phone-payment-translate" type="button" aria-pressed="false"${hasTranslation ? '' : ' hidden'}>번역 보기</button>
                 </header>
                 <div class="crx-phone-payment-summary">
-                    ${renderPaymentSummaryCard('총 자산', payment.total_assets, 'fa-wallet')}
-                    ${renderPaymentSummaryCard('이번 달 결제 예정 금액', payment.monthly_card_total, 'fa-credit-card')}
+                    ${renderPaymentSummaryCard(copy.totalAssets, payment.total_assets, 'fa-wallet', showWonUnit)}
+                    ${renderPaymentSummaryCard(copy.spentBalance, payment.monthly_card_total, 'fa-credit-card', showWonUnit)}
                 </div>
                 <section class="crx-phone-payment-card">
                     <div class="crx-phone-payment-list-head">
-                        <span>최근 결제</span>
-                        <span>${transactions.length} 건</span>
+                        <span>${escapeHtml(copy.transactions)}</span>
+                        <span>${escapeHtml(copy.transactionCount)}</span>
                     </div>
-                    <ul class="crx-phone-payment-list" data-transactions="${encodedTransactions}" data-rendered="${initialTransactions.length}" data-page-size="${PAYMENT_PAGE_SIZE}">
-                        ${renderPaymentTransactionBatch(initialTransactions)}
+                    <ul class="crx-phone-payment-list" data-transactions="${encodedTransactions}" data-rendered="${initialTransactions.length}" data-page-size="${PAYMENT_PAGE_SIZE}" data-show-won-unit="${showWonUnit ? 'true' : 'false'}" data-bank-theme="${escapeHtml(bankTheme)}">
+                        ${renderPaymentTransactionBatch(initialTransactions, showWonUnit, bankTheme)}
                     </ul>
                     <div class="crx-phone-payment-more${transactions.length > initialTransactions.length ? '' : ' is-hidden'}">아래로 스크롤하면 다음 내역을 불러옵니다.</div>
                 </section>
@@ -168,41 +175,86 @@ Rules:
     `;
         }
 
-        function renderPaymentSummaryCard(label, value, icon) {
+        function getPaymentCopy(bankTheme, ownerName, transactionCount) {
+            if (bankTheme === 'bankOfAmerica') {
+                return {
+                    owner: `Hello, ${ownerName}`,
+                    totalAssets: 'Total Balance',
+                    spentBalance: 'Spent Balance',
+                    transactions: 'Lastest Transactions',
+                    transactionCount: String(transactionCount),
+                };
+            }
+            return {
+                owner: `${ownerName} 님`,
+                totalAssets: '총 자산',
+                spentBalance: '이번 달 결제 예정 금액',
+                transactions: '최근 결제',
+                transactionCount: `${transactionCount} 건`,
+            };
+        }
+
+        function renderPaymentSummaryCard(label, value, icon, showWonUnit) {
             return `
         <div class="crx-phone-payment-summary-card">
             <i class="fa-solid ${escapeHtml(icon)}" aria-hidden="true"></i>
             <span class="crx-phone-payment-ttl">${escapeHtml(label)}</span>
-            <span class="crx-phone-payment-summary-amount"><strong>${escapeHtml(value?.display || '')}</strong> 원</span>
+            <span class="crx-phone-payment-summary-amount"><strong>${escapeHtml(value?.display || '')}</strong>${showWonUnit ? ' 원' : ''}</span>
         </div>
     `;
         }
 
-        function renderPaymentTransactionBatch(transactions) {
-            return (Array.isArray(transactions) ? transactions : []).map(renderPaymentTransaction).join('');
+        function renderPaymentTransactionBatch(transactions, showWonUnit = true, bankTheme = showWonUnit ? 'kbKookmin' : 'bankOfAmerica') {
+            return (Array.isArray(transactions) ? transactions : [])
+                .map(transaction => renderPaymentTransaction(transaction, showWonUnit, bankTheme))
+                .join('');
         }
 
-        function renderPaymentTransaction(transaction) {
+        function renderPaymentTransaction(transaction, showWonUnit, bankTheme) {
             const negative = Number(transaction.amount) < 0;
             const translation = String(transaction.description_translation || '').trim();
             const detailNote = String(transaction.detail_note || '').trim();
             const detailNoteTranslation = String(transaction.detail_note_translation || '').trim();
             const hasTranslation = Boolean(translation || detailNoteTranslation);
+            const timeLabel = formatPaymentDisplayTime(transaction, bankTheme);
             return `
         <li class="crx-phone-payment-transaction${hasTranslation ? ' has-translation' : ''}" data-result-id="${escapeHtml(transaction._source_result_id || '')}" data-transaction-id="${escapeHtml(transaction._source_transaction_id || transaction.id || '')}">
             <button class="crx-phone-payment-edit" type="button" data-result-id="${escapeHtml(transaction._source_result_id || '')}" data-transaction-id="${escapeHtml(transaction._source_transaction_id || transaction.id || '')}" aria-label="${escapeHtml(PAYMENT_EDIT_ARIA_LABEL)}">
                 <i class="fa-solid fa-ellipsis-vertical" aria-hidden="true"></i>
             </button>
             <span class="crx-phone-payment-transaction-main">
-                <span class="crx-phone-payment-time">${escapeHtml(transaction.time_label || '')}</span>
+                <span class="crx-phone-payment-time">${escapeHtml(timeLabel)}</span>
                 <span class="crx-phone-payment-description-original">${escapeHtml(transaction.description)}</span>
                 ${translation ? `<span class="crx-phone-payment-description-translation">${escapeHtml(translation)}</span>` : ''}
                 ${detailNote ? `<span class="crx-phone-payment-detail-original">${escapeHtml(detailNote)}</span>` : ''}
                 ${detailNoteTranslation ? `<span class="crx-phone-payment-detail-translation">${escapeHtml(detailNoteTranslation)}</span>` : ''}
             </span>
-            <span class="crx-phone-payment-amount ${negative ? 'is-negative' : 'is-positive'}"><strong>${escapeHtml(transaction.display_amount || '')}</strong> 원</span>
+            <span class="crx-phone-payment-amount ${negative ? 'is-negative' : 'is-positive'}"><strong>${escapeHtml(transaction.display_amount || '')}</strong>${showWonUnit ? ' 원' : ''}</span>
         </li>
     `;
+        }
+
+        function formatPaymentDisplayTime(transaction, bankTheme) {
+            const date = new Date(transaction?.occurred_at || '');
+            if (Number.isNaN(date.getTime())) {
+                return String(transaction?.time_label || '').trim();
+            }
+            const month = bankTheme === 'bankOfAmerica'
+                ? BOFA_MONTHS[date.getMonth()]
+                : padDatePart(date.getMonth() + 1);
+            const day = padDatePart(date.getDate());
+            const time = [
+                date.getHours(),
+                date.getMinutes(),
+                date.getSeconds(),
+            ].map(padDatePart).join(':');
+            return bankTheme === 'bankOfAmerica'
+                ? `${day} ${month} ${time}`
+                : `${month}.${day} ${time}`;
+        }
+
+        function padDatePart(value) {
+            return String(value).padStart(2, '0');
         }
 
         function createEmptyPhoneAppData(appId = 'paymentHistory') {
@@ -223,9 +275,10 @@ Rules:
         function mergePhonePayments(results, appId = 'paymentHistory', maxTransactions = 160) {
             const data = createEmptyPhoneAppData(appId);
             const sortedResults = sortPhoneResultsNewest(results).filter(result => result?.phone?.payment);
-            const latestHome = sortedResults.find(result => result?.phone?.home)?.phone?.home;
-            if (latestHome?.weather) {
-                data.home = latestHome;
+            const latestHomeResult = sortedResults.find(result => result?.phone?.home);
+            if (latestHomeResult?.phone?.home?.weather) {
+                data.home = latestHomeResult.phone.home;
+                data.home_updated_at = getPhoneResultTime(latestHomeResult);
             }
             const latestPayment = sortedResults[0]?.phone?.payment;
             const latestCharacterName = sortedResults.map(getPaymentCharacterNameFromResult).find(Boolean);

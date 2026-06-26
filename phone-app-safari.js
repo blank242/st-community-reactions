@@ -12,6 +12,7 @@
             createId,
             escapeHtml,
             getPhoneAppPreset,
+            getPhoneResultTime,
             normalizeHome,
             normalizeUrl,
             sanitizeId,
@@ -192,9 +193,7 @@ Rules:
         function renderGoogleResultsPage(search, isActive = false) {
             return `
         <article class="crx-phone-google-page${isActive ? ' is-active' : ''}" data-search-id="${escapeHtml(search.id)}">
-            <div class="crx-phone-google-logo" aria-label="Google">
-                <span>G</span><span>o</span><span>o</span><span>g</span><span>l</span><span>e</span>
-            </div>
+            <div class="crx-phone-google-logo" role="img" aria-label="Google"></div>
             <button class="crx-phone-google-querybar" type="button" aria-label="검색 기록으로 돌아가기">
                 <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
                 <span>${escapeHtml(search.query)}</span>
@@ -257,26 +256,59 @@ Rules:
         function mergePhoneSearches(results, appId = 'googleSearch', maxSearches = 48) {
             const data = createEmptyPhoneAppData(appId);
             const sortedResults = sortPhoneResultsNewest(results);
-            const latestHome = sortedResults.find(result => result?.phone?.home)?.phone?.home;
-            if (latestHome?.weather) {
-                data.home = latestHome;
+            const latestHomeResult = sortedResults.find(result => result?.phone?.home);
+            if (latestHomeResult?.phone?.home?.weather) {
+                data.home = latestHomeResult.phone.home;
+                data.home_updated_at = getPhoneResultTime(latestHomeResult);
             }
             const seen = new Set();
             for (const result of sortedResults) {
                 const searches = Array.isArray(result?.phone?.searches) ? result.phone.searches : [];
-                for (const search of searches) {
-                    const key = `${String(search.query || '').trim().toLowerCase()}::${search.id || createId('search')}`;
+                const sourceId = getSearchSourceId(result);
+                for (const [searchIndex, search] of searches.entries()) {
+                    const key = `${sourceId}::${search?.id || searchIndex}`;
                     if (!search?.query || seen.has(key)) {
                         continue;
                     }
                     seen.add(key);
-                    data.searches.push(search);
+                    data.searches.push(withUniqueSearchIds(search, sourceId, searchIndex));
                     if (data.searches.length >= maxSearches) {
                         return data;
                     }
                 }
             }
             return data;
+        }
+
+        function getSearchSourceId(result) {
+            return sanitizeId(
+                result?._source_item_id
+                    || result?.id
+                    || result?.generation?.id
+                    || result?._source_item_path
+                    || createId('phone_search_file'),
+                'phone_search_file',
+            );
+        }
+
+        function withUniqueSearchIds(search, sourceId, searchIndex) {
+            const originalSearchId = sanitizeId(search.id || `search_${String(searchIndex + 1).padStart(3, '0')}`, 'search');
+            const searchId = sanitizeId(`${sourceId}_${originalSearchId}`, 'search');
+            const results = Array.isArray(search.results)
+                ? search.results.map((result, resultIndex) => ({
+                    ...result,
+                    id: sanitizeId(
+                        `${searchId}_${result.id || `result_${String(resultIndex + 1).padStart(3, '0')}`}`,
+                        'result',
+                    ),
+                }))
+                : [];
+
+            return {
+                ...search,
+                id: searchId,
+                results,
+            };
         }
 
         function hasContent(app) {

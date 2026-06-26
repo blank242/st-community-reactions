@@ -180,12 +180,33 @@ Phone home screen structured data rules:
 
         function getPhoneHomeData(apps) {
             const list = Array.isArray(apps) ? apps : [];
-            const generatedHome = list.find(app => !app?.is_static && app?.home?.weather)?.home;
-            if (generatedHome?.weather) {
-                return generatedHome;
+            const generatedApps = list
+                .filter(app => !app?.is_static && app?.home?.weather)
+                .sort((a, b) => getHomeUpdatedAt(b) - getHomeUpdatedAt(a));
+            if (generatedApps[0]?.home?.weather) {
+                return generatedApps[0].home;
             }
             const fallbackHome = list.find(app => app?.home?.weather)?.home;
             return fallbackHome?.weather ? fallbackHome : createDefaultHomeData();
+        }
+
+        function getHomeUpdatedAt(app) {
+            const candidates = [
+                app?.home_updated_at,
+                app?._home_updated_at,
+                app?.home?.created_at,
+                app?.home?.createdAt,
+            ];
+            for (const value of candidates) {
+                if (typeof value === 'number' && Number.isFinite(value)) {
+                    return value;
+                }
+                const parsed = Date.parse(value);
+                if (Number.isFinite(parsed)) {
+                    return parsed;
+                }
+            }
+            return 0;
         }
 
         function createDefaultHomeData(input = {}) {
@@ -239,4 +260,3 @@ Phone home screen structured data rules:
     }
     return { create };
 })();
-
