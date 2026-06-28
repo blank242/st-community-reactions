@@ -283,19 +283,17 @@ globalThis.CommunityReactionsTemplates = (() => {
         function renderComposerFooter() {
             return `
         <div class="crx-footer">
-<!--            <button id="crx-open-library" class="crx-secondary-button" type="button">휴대폰 확인하기</button>-->
             <button id="crx-generate" class="crx-primary-button" type="button">생성하기</button>
         </div>
     `;
         }
 
-        function buildComposerFrameHtml(context, index = createEmptyIndex('unknown'), frameOptions = {}) {
-            const embeddedPhone = Boolean(frameOptions.embeddedPhone);
+        function buildComposerFrameHtml(context, index = createEmptyIndex('unknown')) {
             const range = getDefaultRange(context);
             const options = getComposerOptions(context, index);
 
             return `
-        <div class="${embeddedPhone ? 'crx-phone-composer' : 'crx-popup'}">
+        <div class="crx-phone-composer">
             ${renderComposerHeader()}
             <div class="crx-sheet">
                 ${renderReactionModeSection(options.modeOptions)}
@@ -312,8 +310,7 @@ globalThis.CommunityReactionsTemplates = (() => {
     `;
         }
 
-        function buildViewerFrameHtml(result, index, options = {}) {
-            const embeddedPhone = Boolean(options.embeddedPhone);
+        function buildViewerFrameHtml(result, index) {
             const activeApp = APP_PRESETS[state.activeAppKey] || null;
             const optionList = getCommunityOptions(index, state.activeAppKey);
             const hasOptions = optionList.length > 0;
@@ -324,7 +321,7 @@ globalThis.CommunityReactionsTemplates = (() => {
             const emptyState = hasOptions ? '' : '<div class="crx-empty-app">저장된 반응이 없습니다.</div>';
 
             return `
-        <div class="${embeddedPhone ? 'crx-phone-community-viewer crx-viewer' : 'crx-popup crx-viewer'}">
+        <div class="crx-phone-community-viewer crx-viewer">
             <div class="crx-header">
                 <button id="crx-back-phone-home" class="crx-icon-button crx-back-home-button" type="button" aria-label="휴대폰 홈으로"><i class="fa-solid fa-chevron-left"></i></button>
                 <div class="crx-viewer-heading">
@@ -332,7 +329,6 @@ globalThis.CommunityReactionsTemplates = (() => {
                     <select id="crx-community-select" class="crx-title-select" aria-label="커뮤니티 선택"${hasOptions ? '' : ' disabled'}>${communityOptions}</select>
                 </div>
                 <button id="crx-toggle-delete-mode" class="crx-icon-button crx-delete-mode-button" type="button" aria-label="삭제모드" aria-pressed="false"${hasOptions ? '' : ' disabled'}><i class="fa-solid fa-trash"></i></button>
-                ${embeddedPhone ? '' : '<button id="crx-close-viewer" class="crx-icon-button" type="button" aria-label="닫기"><i class="fa-solid fa-xmark"></i></button>'}
             </div>
             <div class="crx-viewer-tools">
                 <div class="crx-delete-actions">
@@ -345,20 +341,12 @@ globalThis.CommunityReactionsTemplates = (() => {
     `;
         }
 
-        function buildComposerHtml(context, index = createEmptyIndex('unknown')) {
+        function buildPhoneComposerHtml(context, index = createEmptyIndex('unknown')) {
             return buildComposerFrameHtml(context, index);
         }
 
-        function buildPhoneComposerHtml(context, index = createEmptyIndex('unknown')) {
-            return buildComposerFrameHtml(context, index, { embeddedPhone: true });
-        }
-
-        function buildViewerHtml(result, index) {
-            return buildViewerFrameHtml(result, index);
-        }
-
         function buildCommunityPhoneViewerHtml(result, index) {
-            return buildViewerFrameHtml(result, index, { embeddedPhone: true });
+            return buildViewerFrameHtml(result, index);
         }
 
         function getPostText(post, result, original = false) {
@@ -1248,13 +1236,11 @@ globalThis.CommunityReactionsTemplates = (() => {
         }
 
         return {
-            buildComposerHtml,
             buildCommunityPhoneViewerHtml,
             buildPhoneComposerHtml,
             buildGoogleResultEditorHtml,
             buildPaymentTransactionEditorHtml,
             buildPostEditorHtml,
-            buildViewerHtml,
             renderDaumListItem,
             renderDaumPost,
             renderEverytimeListItem,

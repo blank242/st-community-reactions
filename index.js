@@ -22,7 +22,7 @@ globalThis.CommunityReactionsExtension = (() => {
             : new URL(`/scripts/extensions/third-party/${MODULE_NAME}/`, window.location.href).href;
     })();
     const EXTENSION_CACHE_VERSION = (() => {
-        const fallbackVersion = '20260628-2';
+        const fallbackVersion = '20260628-options-generate-1';
         if (!EXTENSION_ENTRY_URL) {
             return fallbackVersion;
         }
@@ -189,6 +189,43 @@ globalThis.CommunityReactionsExtension = (() => {
     const PHONE_VIEWER_ITEMS_PER_APP = 16;
     const ADD_OPTION_VALUE = '__add__';
 
+    function getPhonePostCountPreset(appId) {
+        const normalizedAppId = getPhoneAppOrDefault(appId);
+        const app = PHONE_APP_PRESETS[normalizedAppId];
+        if (!app) {
+            return {};
+        }
+
+        if (normalizedAppId === 'paymentHistory') {
+            return {
+                minPosts: app.minTransactions,
+                maxPosts: app.maxTransactions,
+                defaultPosts: app.defaultTransactions,
+            };
+        }
+
+        return {
+            minPosts: app.minSearches,
+            maxPosts: app.maxSearches,
+            defaultPosts: app.defaultSearches,
+        };
+    }
+
+    function getGenerationPreset(site, reactionMode = 'reader') {
+        const basePreset = SITE_PRESETS[site] || SITE_PRESETS.twitter;
+        if (reactionMode !== 'phone') {
+            return basePreset;
+        }
+
+        const countPreset = getPhonePostCountPreset(site);
+        return {
+            ...basePreset,
+            minPosts: Number.isFinite(countPreset.minPosts) ? countPreset.minPosts : basePreset.minPosts,
+            maxPosts: Number.isFinite(countPreset.maxPosts) ? countPreset.maxPosts : basePreset.maxPosts,
+            defaultPosts: Number.isFinite(countPreset.defaultPosts) ? countPreset.defaultPosts : basePreset.defaultPosts,
+        };
+    }
+
     const CUSTOM_COUNTRY_KEY = 'custom';
     const COUNTRY_PRESETS = Object.freeze({
         korea: { label: '한국', language: 'ko' },
@@ -237,7 +274,6 @@ globalThis.CommunityReactionsExtension = (() => {
     }
 
     const state = {
-        composerModal: null,
         viewerModal: null,
         postEditorModal: null,
         wallpaperModal: null,
@@ -554,7 +590,7 @@ globalThis.CommunityReactionsExtension = (() => {
     }
 
     function getDefaultGenerationOptions(site, reactionMode = 'reader') {
-        const preset = SITE_PRESETS[site] || SITE_PRESETS.twitter;
+        const preset = getGenerationPreset(site, reactionMode);
         const options = {
             site_country: preset.supportsCountry ? 'korea' : preset.fixedCountry,
             output_language: 'ko',
@@ -585,7 +621,7 @@ globalThis.CommunityReactionsExtension = (() => {
         }
 
         const defaults = getDefaultGenerationOptions(site, reactionMode);
-        const preset = SITE_PRESETS[site] || SITE_PRESETS.twitter;
+        const preset = getGenerationPreset(site, reactionMode);
         const customCountry = normalizeCustomCountry(options.custom_site_country || options.customSiteCountry);
         const requestedCountry = String(options.site_country || '');
         const country = preset.supportsCountry
@@ -1017,17 +1053,12 @@ globalThis.CommunityReactionsExtension = (() => {
         return modal;
     }
 
-    function closeComposer() {
-        hideActiveHelpTooltip();
-        state.composerModal?.remove();
-        state.composerModal = null;
-    }
-
     function closePostEditor() {
         state.postEditorModal?.remove();
         state.postEditorModal = null;
     }
     function closeViewer(options = {}) {
+        hideActiveHelpTooltip();
         closePostEditor();
         closePhoneWallpaperSettings();
         const modal = state.viewerModal;
@@ -1375,10 +1406,6 @@ globalThis.CommunityReactionsExtension = (() => {
         void openPhoneComposerApp();
     }
 
-    async function openComposerInPhoneMode() {
-        await openPhoneComposerApp('phone');
-    }
-
     async function openPhoneComposerApp(mode = '') {
         await initializeStorage();
         await initializeTemplates();
@@ -1393,7 +1420,6 @@ globalThis.CommunityReactionsExtension = (() => {
 
         const chatPk = ensureChatPk(context);
         const index = await loadIndex(chatPk);
-        closeComposer();
         if (!isPhoneViewerModal()) {
             await openPhoneViewer(null, index, 'phone:googleSearch');
         }
@@ -1431,7 +1457,7 @@ globalThis.CommunityReactionsExtension = (() => {
         state.activeAppKey = '';
         state.activeCommunity = 'generate';
         state.activeViewKey = 'phone:generate';
-        bindComposerControls(root, context, chatPk, { embeddedPhone: true, phoneModal: modal });
+        bindComposerControls(root, context, chatPk, modal);
         if (mode) {
             const modeSelect = root.querySelector('#crx-reaction-mode');
             if (modeSelect) {
@@ -1634,12 +1660,12 @@ globalThis.CommunityReactionsExtension = (() => {
 
     function positionHelpTooltip(button, helpText) {
         const buttonRect = button.getBoundingClientRect();
-        const modalRect = state.composerModal?.querySelector('.crx-popup')?.getBoundingClientRect();
+        const composerRect = button.closest('.crx-phone-composer, .crx-popup')?.getBoundingClientRect();
         const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
         const viewportHeight = document.documentElement.clientHeight || window.innerHeight;
         const margin = 8;
-        const minLeft = Math.max(margin, modalRect?.left ?? margin);
-        const maxRight = Math.min(viewportWidth - margin, modalRect?.right ?? viewportWidth - margin);
+        const minLeft = Math.max(margin, composerRect?.left ?? margin);
+        const maxRight = Math.min(viewportWidth - margin, composerRect?.right ?? viewportWidth - margin);
         const tooltipWidth = Math.min(280, maxRight - minLeft);
 
         helpText.style.maxWidth = `${tooltipWidth}px`;
@@ -1660,14 +1686,15 @@ globalThis.CommunityReactionsExtension = (() => {
     }
 
     function hideActiveHelpTooltip() {
-        if (!state.activeHelpButton || !state.composerModal) {
+        if (!state.activeHelpButton) {
             state.activeHelpButton = null;
             return;
         }
 
         const key = state.activeHelpButton.dataset.crxHelp;
         const selector = `[data-crx-help-text="${cssEscape(key)}"]`;
-        const helpText = state.activeHelpButton.closest('label')?.querySelector(selector) ?? state.composerModal.querySelector(selector);
+        const root = state.activeHelpButton.closest('.crx-phone-composer, .crx-popup, .crx-modal') || document;
+        const helpText = state.activeHelpButton.closest('label')?.querySelector(selector) ?? root.querySelector(selector);
         helpText?.classList.remove('crx-help-visible');
         state.activeHelpButton.setAttribute('aria-expanded', 'false');
         state.activeHelpButton = null;
@@ -1705,7 +1732,7 @@ globalThis.CommunityReactionsExtension = (() => {
     function applyGenerationOptions(root, options, site, reactionMode) {
         const normalized = normalizeGenerationOptions(options, site, reactionMode)
             || getDefaultGenerationOptions(site, reactionMode);
-        const preset = SITE_PRESETS[site] || SITE_PRESETS.twitter;
+        const preset = getGenerationPreset(site, reactionMode);
         const country = root.querySelector('#crx-country');
         const customCountry = root.querySelector('#crx-custom-country');
         const language = root.querySelector('#crx-language');
@@ -1781,7 +1808,8 @@ globalThis.CommunityReactionsExtension = (() => {
                     : '';
         const customPrompt = root.querySelector('#crx-custom-prompt');
         const site = isPhone ? phoneAppId : isNpc ? topicSite || NPC_SITE_KEYS[0] : readerSite;
-        const preset = SITE_PRESETS[site];
+        const activeReactionMode = isPhone ? 'phone' : isNpc ? 'npc' : 'reader';
+        const preset = getGenerationPreset(site, activeReactionMode);
         const country = root.querySelector('#crx-country');
         const customCountry = root.querySelector('#crx-custom-country');
         const customCountryRow = root.querySelector('#crx-custom-country-row');
@@ -1807,7 +1835,6 @@ globalThis.CommunityReactionsExtension = (() => {
         root.querySelector('#crx-post-count-label').textContent = isPhone
             ? PHONE_APP_PRESETS[phoneAppId]?.countLabel || '항목 수'
             : '게시글 수';
-        root.querySelector('#crx-open-library').textContent = '휴대폰 확인하기';
         const countryHelp = root.querySelector('[data-crx-help-text="국가"]');
         if (countryHelp) {
             countryHelp.textContent = isPhone
@@ -1900,7 +1927,7 @@ globalThis.CommunityReactionsExtension = (() => {
                 root,
                 getSavedGenerationOptionsForSelection(root, { mode, site, selectedReaderCommunity, selectedTopic }),
                 site,
-                isPhone ? 'phone' : isNpc ? 'npc' : 'reader',
+                activeReactionMode,
             );
             root._crxGenerationOptionsSourceKey = optionsSourceKey;
         }
@@ -1991,7 +2018,7 @@ globalThis.CommunityReactionsExtension = (() => {
                     : reactionMode === 'reader' && readerOption?.dataset?.site
                         ? getReaderSiteOrDefault(selectedReaderCommunity?.site || readerOption.dataset.site)
                         : getReaderSiteOrDefault(readerSelection.replace(/^site:/, ''));
-        const sitePreset = SITE_PRESETS[site];
+        const sitePreset = getGenerationPreset(site, reactionMode);
         const selectedCountry = sitePreset.supportsCountry ? root.querySelector('#crx-country').value : sitePreset.fixedCountry;
         const customCountry = sitePreset.supportsCountry ? normalizeCustomCountry(root.querySelector('#crx-custom-country')?.value) : '';
         if (sitePreset.supportsCountry && selectedCountry === CUSTOM_COUNTRY_KEY && !customCountry) {
@@ -2643,58 +2670,21 @@ globalThis.CommunityReactionsExtension = (() => {
     }
 
     async function openComposer() {
-        await initializeStorage();
-        await initializeTemplates();
-        await initializePrompts();
-        await initializePhone();
-
-        const context = getContextSafe();
-        if (!context?.chat?.length) {
-            toastr.warning('대화 내역이 없습니다.');
-            return;
-        }
-
-        const chatPk = ensureChatPk(context);
-        const index = await loadIndex(chatPk);
-        closeComposer();
-        const modal = createModal(templates.buildComposerHtml(context, index), 'crx-composer-modal');
-        state.composerModal = modal;
-        const root = modal.querySelector('.crx-popup');
-        setComposerIndex(root, index);
-
-        bindComposerControls(root, context, chatPk, { modal });
+        await openPhoneComposerApp();
     }
 
-    function bindComposerControls(root, context, chatPk, options = {}) {
-        const embeddedPhone = Boolean(options.embeddedPhone);
-        const phoneModal = options.phoneModal || state.viewerModal;
+    function bindComposerControls(root, context, chatPk, phoneModal = state.viewerModal) {
         const closeComposerView = () => {
             hideActiveHelpTooltip();
-            if (embeddedPhone) {
-                if (phoneModal) {
-                    showPhoneHome(phoneModal);
-                }
-                return;
+            if (phoneModal) {
+                showPhoneHome(phoneModal);
             }
-            closeComposer();
         };
 
-        root.querySelector('#crx-close-composer')?.addEventListener('click', closeComposerView);
         root.querySelector('#crx-back-phone-home')?.addEventListener('click', event => {
             event.preventDefault();
-            hideActiveHelpTooltip();
-            if (embeddedPhone) {
-                if (phoneModal) {
-                    showPhoneHome(phoneModal);
-                }
-                return;
-            }
-            closeComposer();
-            void openPhoneHome();
+            closeComposerView();
         });
-        if (!embeddedPhone) {
-            options.modal?.querySelector('.crx-modal-backdrop')?.addEventListener('click', closeComposer);
-        }
         root.querySelector('#crx-reaction-mode').addEventListener('change', () => syncComposerControls(root));
         root.querySelector('#crx-reader-community').addEventListener('change', () => syncComposerControls(root));
         root.querySelector('#crx-reader-community-site').addEventListener('change', () => syncComposerControls(root));
@@ -2756,15 +2746,6 @@ globalThis.CommunityReactionsExtension = (() => {
         root.querySelector('#crx-delete-reader-community').addEventListener('click', () => void handleDeleteReaderCommunity(root, chatPk));
         root.querySelector('#crx-save-topic').addEventListener('click', () => void handleSaveNpcTopic(root, chatPk));
         root.querySelector('#crx-delete-topic').addEventListener('click', () => void handleDeleteNpcTopic(root, chatPk));
-        root.querySelector('#crx-open-library').addEventListener('click', () => {
-            if (embeddedPhone) {
-                if (phoneModal) {
-                    showPhoneHome(phoneModal);
-                }
-                return;
-            }
-            void openPhoneHome();
-        });
         root.querySelector('#crx-generate').addEventListener('click', () => void handleGenerate(root));
         syncComposerControls(root);
         syncMessagePreviews(root, context);
@@ -2951,7 +2932,7 @@ globalThis.CommunityReactionsExtension = (() => {
             loadingInterval = setInterval(updateLoadingText, 600);
             const result = await generateReaction(input);
             await saveResult(result);
-            closeComposer();
+            hideActiveHelpTooltip();
             if (input.reaction_mode === 'phone') {
                 await openPhoneViewer(result, null, null, { notificationBadge: createPhoneNotificationBadge(result) });
             } else {
@@ -3092,7 +3073,7 @@ globalThis.CommunityReactionsExtension = (() => {
     async function openPhoneHome(index = null) {
         await initializeStorage();
         await initializePhone();
-        closeComposer();
+        hideActiveHelpTooltip();
         const context = getContextSafe();
         if (!index && !context?.chatMetadata) {
             toastr.warning('대화를 먼저 열어주세요.');
@@ -3100,10 +3081,6 @@ globalThis.CommunityReactionsExtension = (() => {
         }
         const actualIndex = index || await loadIndex(ensureChatPk(context));
         await openPhoneViewer(null, actualIndex, 'phone:googleSearch');
-    }
-
-    async function openLibrary() {
-        await openPhoneHome();
     }
 
     function openViewerFromItem(item, index = null, viewKey = null, appKey = '') {
@@ -3372,7 +3349,7 @@ globalThis.CommunityReactionsExtension = (() => {
 
         section.innerHTML = templates.buildCommunityPhoneViewerHtml(result, actualIndex);
         modal.querySelector('.crx-phone-device')?.setAttribute('data-active-community-app', activeAppKey);
-        bindViewer(modal, actualIndex, { embeddedPhone: true });
+        bindViewer(modal, actualIndex);
         if (targetItem) {
             await renderMorePosts();
         }
@@ -4396,26 +4373,10 @@ globalThis.CommunityReactionsExtension = (() => {
         list.closest('.crx-phone-payment-card')?.querySelector('.crx-phone-payment-more')?.classList.toggle('is-hidden', nextRendered >= transactions.length);
     }
 
-    function bindViewer(modal, index, options = {}) {
-        const embeddedPhone = Boolean(options.embeddedPhone);
-        const closeToHome = () => {
-            if (embeddedPhone) {
-                showPhoneHome(modal);
-                return;
-            }
-            closeViewer();
-        };
-        modal.querySelector('#crx-close-viewer')?.addEventListener('click', closeToHome);
-        if (!embeddedPhone) {
-            modal.querySelector('.crx-modal-backdrop')?.addEventListener('click', closeViewer);
-        }
+    function bindViewer(modal, index) {
         modal.querySelector('#crx-post-list')?.addEventListener('scroll', () => void maybeLoadMoreOnScroll());
         modal.querySelector('#crx-back-phone-home')?.addEventListener('click', () => {
-            if (embeddedPhone) {
-                showPhoneHome(modal);
-                return;
-            }
-            void openPhoneHome(index);
+            showPhoneHome(modal);
         });
         modal.querySelector('#crx-toggle-delete-mode')?.addEventListener('click', () => toggleDeleteMode());
         modal.querySelector('#crx-community-select')?.addEventListener('change', async function () {
@@ -4424,11 +4385,7 @@ globalThis.CommunityReactionsExtension = (() => {
                 return;
             }
             const result = await readJson(firstItem.path);
-            if (embeddedPhone) {
-                await openCommunityAppInPhone(state.activeAppKey, index, this.value, result);
-                return;
-            }
-            await openViewer(result, index, this.value, state.activeAppKey);
+            await openCommunityAppInPhone(state.activeAppKey, index, this.value, result);
         });
         modal.querySelector('#crx-delete-selected-posts')?.addEventListener('click', () => void deleteSelectedPosts());
         modal.querySelector('#crx-delete-category')?.addEventListener('click', () => void deleteCurrentCategoryFiles(index));
