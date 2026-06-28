@@ -154,7 +154,7 @@ Rules:
             const bankPayments = getRenderablePaymentBanks(app);
             return `
         <section class="crx-phone-app crx-phone-payment-app" data-phone-app="paymentHistory">
-            ${bankPayments.map((bankPayment, index) => renderPaymentBankScreen(bankPayment, index === 0)).join('')}
+            ${bankPayments.length ? bankPayments.map((bankPayment, index) => renderPaymentBankScreen(bankPayment, index === 0)).join('') : '<div class="crx-phone-empty">결제 내역이 없습니다.</div>'}
         </section>
     `;
         }
@@ -358,7 +358,11 @@ Rules:
         }
 
         function renderHomeIcon(app) {
-            return getRenderablePaymentBanks(app)
+            const bankPayments = getRenderablePaymentBanks(app);
+            const homePayments = bankPayments.length
+                ? bankPayments
+                : [createEmptyPaymentData(getPhoneAppPreset(app?.app_id || 'paymentHistory')).payment];
+            return homePayments
                 .map(bankPayment => renderPaymentBankHomeIcon(app, bankPayment))
                 .join('');
         }

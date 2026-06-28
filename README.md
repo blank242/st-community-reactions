@@ -28,12 +28,10 @@ SillyTavern 채팅 내용을 바탕으로 가상의 커뮤니티 반응을 생�
 ### 사용 방법
 
 1. SillyTavern에서 채팅을 엽니다.
-2. 마법봉 메뉴에서 `커뮤니티 보기`를 누릅니다.
-3. `반응 유형`을 선택합니다.
-4. 커뮤니티, 메시지 범위, 국가, 출력 언어, 게시글 수 등을 설정합니다.
-5. 필요하다면 월드인포, 캐릭터 카드, 안티반응, 원문보존 옵션을 켭니다.
-6. `생성하기`를 누릅니다.
-7. 생성이 끝나면 `커뮤니티 보기`에서 저장된 반응을 확인합니다.
+2. 마법봉 메뉴에서 `휴대폰 확인하기`를 누릅니다.
+3. 휴대폰 홈에서 다음카페, Twitter, 에브리타임, 리디북스 앱을 선택합니다.
+4. 선택한 앱에 해당하는 커뮤니티/카테고리의 저장된 반응을 확인합니다.
+5. 생성 모달에서는 반응 유형, 커뮤니티, 메시지 범위, 국가, 출력 언어, 게시글 수 등을 설정한 뒤 `생성하기`를 누릅니다.
 
 ### 반응 유형
 
@@ -116,7 +114,7 @@ NPC 반응은 별도의 카테고리 제목과 프롬프트를 저장해서 사�
 
 ### 문제 해결
 
-#### 마법봉 메뉴에 `커뮤니티 보기`가 보이지 않아요
+#### 마법봉 메뉴에 `휴대폰 확인하기`가 보이지 않아요
 
 SillyTavern을 새로고침하세요. 그래도 보이지 않으면 브라우저 콘솔에 `Community Reactions` 관련 오류가 있는지 확인하세요.
 
@@ -163,12 +161,10 @@ It can treat the selected chat range as a novel chapter, drama episode, comic/we
 ### Basic Usage
 
 1. Open a chat in SillyTavern.
-2. Click `커뮤니티 보기` in the wand menu.
-3. Choose a reaction type.
-4. Select a community, message range, country, output language, and post count.
-5. Optionally include world info, character card, anti reactions, hidden messages, or original text preservation.
-6. Click `생성하기`.
-7. Open the viewer with `커뮤니티 보기` to browse saved reactions.
+2. Click `휴대폰 확인하기` in the wand menu.
+3. Choose Daum Cafe, Twitter, Everytime, or Ridibooks from the phone home screen.
+4. Browse saved reactions for the selected app's matching communities/categories.
+5. In the composer, choose a reaction type, community, message range, country, output language, and post count, then click `생성하기`.
 
 ### Reaction Types
 
@@ -251,7 +247,7 @@ Deleting a custom community or NPC category also deletes reactions generated und
 
 ### Troubleshooting
 
-#### I do not see `커뮤니티 보기` in the wand menu
+#### I do not see `휴대폰 확인하기` in the wand menu
 
 Refresh SillyTavern. If it still does not appear, check the browser console for `Community Reactions` errors.
 

@@ -20,12 +20,10 @@ It can treat the selected chat range as a novel chapter, drama episode, comic/we
 ## Basic Usage
 
 1. Open a chat in SillyTavern.
-2. Click `커뮤니티 보기` in the wand menu.
-3. Choose a reaction type.
-4. Select a community, message range, country, output language, and post count.
-5. Optionally include world info, character card, anti reactions, hidden messages, or original text preservation.
-6. Click `생성하기`.
-7. Open the viewer with `커뮤니티 보기` to browse saved reactions.
+2. Click `휴대폰 확인하기` in the wand menu.
+3. Choose Daum Cafe, Twitter, Everytime, or Ridibooks from the phone home screen.
+4. Browse saved reactions for the selected app's matching communities/categories.
+5. In the composer, choose a reaction type, community, message range, country, output language, and post count, then click `생성하기`.
 
 ## Reaction Types
 
@@ -112,7 +110,7 @@ Deleting a custom community or NPC category also deletes reactions generated und
 
 ## Troubleshooting
 
-### I do not see `커뮤니티 보기` in the wand menu
+### I do not see `휴대폰 확인하기` in the wand menu
 
 Refresh SillyTavern. If it still does not appear, check the browser console for `Community Reactions` errors.
 

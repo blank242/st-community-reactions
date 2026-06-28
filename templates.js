@@ -4,6 +4,8 @@ globalThis.CommunityReactionsTemplates = (() => {
     function create(deps) {
         const {
             ADD_OPTION_VALUE,
+            APP_ORDER,
+            APP_PRESETS,
             COUNTRY_PRESETS,
             DEFAULT_MAX_TOKENS,
             LANGUAGE_PRESETS,
@@ -68,11 +70,11 @@ globalThis.CommunityReactionsTemplates = (() => {
         function renderComposerHeader() {
             return `
         <div class="crx-header">
+            <button id="crx-back-phone-home" class="crx-icon-button crx-back-home-button" type="button" aria-label="휴대폰 홈으로"><i class="fa-solid fa-chevron-left"></i></button>
             <div>
                 <div class="crx-eyebrow">Community Reactions</div>
-                <div class="crx-title">커뮤니티 보기</div>
+                <div class="crx-title">커뮤니티 반응 생성</div>
             </div>
-            <button id="crx-close-composer" class="crx-icon-button" type="button" aria-label="닫기"><i class="fa-solid fa-xmark"></i></button>
         </div>
     `;
         }
@@ -281,18 +283,19 @@ globalThis.CommunityReactionsTemplates = (() => {
         function renderComposerFooter() {
             return `
         <div class="crx-footer">
-            <button id="crx-open-library" class="crx-secondary-button" type="button">커뮤니티 보기</button>
+<!--            <button id="crx-open-library" class="crx-secondary-button" type="button">휴대폰 확인하기</button>-->
             <button id="crx-generate" class="crx-primary-button" type="button">생성하기</button>
         </div>
     `;
         }
 
-        function buildComposerHtml(context, index = createEmptyIndex('unknown')) {
+        function buildComposerFrameHtml(context, index = createEmptyIndex('unknown'), frameOptions = {}) {
+            const embeddedPhone = Boolean(frameOptions.embeddedPhone);
             const range = getDefaultRange(context);
             const options = getComposerOptions(context, index);
 
             return `
-        <div class="crx-popup">
+        <div class="${embeddedPhone ? 'crx-phone-composer' : 'crx-popup'}">
             ${renderComposerHeader()}
             <div class="crx-sheet">
                 ${renderReactionModeSection(options.modeOptions)}
@@ -303,37 +306,59 @@ globalThis.CommunityReactionsTemplates = (() => {
                 ${renderPostCountSection()}
                 ${renderComposerCheckOptions()}
                 ${renderCustomPromptSection()}
+                ${renderComposerFooter()}
             </div>
-            ${renderComposerFooter()}
         </div>
     `;
         }
 
-        function buildViewerHtml(result, index) {
-            const communityOptions = getCommunityOptions(index).map(option => {
+        function buildViewerFrameHtml(result, index, options = {}) {
+            const embeddedPhone = Boolean(options.embeddedPhone);
+            const activeApp = APP_PRESETS[state.activeAppKey] || null;
+            const optionList = getCommunityOptions(index, state.activeAppKey);
+            const hasOptions = optionList.length > 0;
+            const communityOptions = hasOptions ? optionList.map(option => {
                 return `<option value="${escapeHtml(option.key)}" ${option.key === state.activeViewKey ? 'selected' : ''}>${escapeHtml(option.label)}</option>`;
-            }).join('');
-            const site = getViewLabel(index, state.activeViewKey) || SITE_PRESETS[state.activeCommunity]?.label || state.activeCommunity;
+            }).join('') : `<option value="">${escapeHtml(activeApp?.label || '커뮤니티')}</option>`;
+            const site = getViewLabel(index, state.activeViewKey) || activeApp?.label || SITE_PRESETS[state.activeCommunity]?.label || state.activeCommunity;
+            const emptyState = hasOptions ? '' : '<div class="crx-empty-app">저장된 반응이 없습니다.</div>';
 
             return `
-        <div class="crx-popup crx-viewer">
+        <div class="${embeddedPhone ? 'crx-phone-community-viewer crx-viewer' : 'crx-popup crx-viewer'}">
             <div class="crx-header">
+                <button id="crx-back-phone-home" class="crx-icon-button crx-back-home-button" type="button" aria-label="휴대폰 홈으로"><i class="fa-solid fa-chevron-left"></i></button>
                 <div class="crx-viewer-heading">
                     <div class="crx-eyebrow">${escapeHtml(site)}</div>
-                    <select id="crx-community-select" class="crx-title-select" aria-label="커뮤니티 선택">${communityOptions}</select>
+                    <select id="crx-community-select" class="crx-title-select" aria-label="커뮤니티 선택"${hasOptions ? '' : ' disabled'}>${communityOptions}</select>
                 </div>
-                <button id="crx-toggle-delete-mode" class="crx-icon-button crx-delete-mode-button" type="button" aria-label="삭제모드" aria-pressed="false"><i class="fa-solid fa-trash"></i></button>
-                <button id="crx-close-viewer" class="crx-icon-button" type="button" aria-label="닫기"><i class="fa-solid fa-xmark"></i></button>
+                <button id="crx-toggle-delete-mode" class="crx-icon-button crx-delete-mode-button" type="button" aria-label="삭제모드" aria-pressed="false"${hasOptions ? '' : ' disabled'}><i class="fa-solid fa-trash"></i></button>
+                ${embeddedPhone ? '' : '<button id="crx-close-viewer" class="crx-icon-button" type="button" aria-label="닫기"><i class="fa-solid fa-xmark"></i></button>'}
             </div>
             <div class="crx-viewer-tools">
                 <div class="crx-delete-actions">
-                    <button id="crx-delete-selected-posts" class="crx-tool-button" type="button"><i class="fa-solid fa-trash"></i><span>선택 삭제</span></button>
-                    <button id="crx-delete-category" class="crx-tool-button crx-danger" type="button"><i class="fa-solid fa-folder-minus"></i><span>전체 삭제</span></button>
+                    <button id="crx-delete-selected-posts" class="crx-tool-button" type="button"${hasOptions ? '' : ' disabled'}><i class="fa-solid fa-trash"></i><span>선택 삭제</span></button>
+                    <button id="crx-delete-category" class="crx-tool-button crx-danger" type="button"${hasOptions ? '' : ' disabled'}><i class="fa-solid fa-folder-minus"></i><span>전체 삭제</span></button>
                 </div>
             </div>
-            <div id="crx-post-list" class="crx-post-list"></div>
+            <div id="crx-post-list" class="crx-post-list">${emptyState}</div>
         </div>
     `;
+        }
+
+        function buildComposerHtml(context, index = createEmptyIndex('unknown')) {
+            return buildComposerFrameHtml(context, index);
+        }
+
+        function buildPhoneComposerHtml(context, index = createEmptyIndex('unknown')) {
+            return buildComposerFrameHtml(context, index, { embeddedPhone: true });
+        }
+
+        function buildViewerHtml(result, index) {
+            return buildViewerFrameHtml(result, index);
+        }
+
+        function buildCommunityPhoneViewerHtml(result, index) {
+            return buildViewerFrameHtml(result, index, { embeddedPhone: true });
         }
 
         function getPostText(post, result, original = false) {
@@ -510,8 +535,6 @@ globalThis.CommunityReactionsTemplates = (() => {
         </div>
     `;
         }
-
-
 
         function buildGoogleResultEditorHtml(result = {}) {
             return `
@@ -1226,6 +1249,8 @@ globalThis.CommunityReactionsTemplates = (() => {
 
         return {
             buildComposerHtml,
+            buildCommunityPhoneViewerHtml,
+            buildPhoneComposerHtml,
             buildGoogleResultEditorHtml,
             buildPaymentTransactionEditorHtml,
             buildPostEditorHtml,

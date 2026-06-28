@@ -1,0 +1,386 @@
+/* Payment history app: theme variables live on the app wrapper. */
+.crx-phone-bank-icon {
+    display: inline-grid;
+    place-items: center;
+    width: 58px;
+    height: 58px;
+    border-radius: 16px;
+    color: #ffffff;
+    box-shadow: 0 12px 22px rgba(15, 23, 42, 0.18);
+
+    & i {
+        font-size: 1.15rem;
+        margin-bottom: 1px;
+    }
+
+    & b {
+        font-size: 0.68rem;
+        line-height: 1;
+    }
+
+    &.is-bofa {
+        background: url('assets/BofA.png') #000000 no-repeat center / 100%;
+    }
+
+    &.is-kb {
+        background: url(assets/kb.png) #ffd100 no-repeat center / cover;
+    }
+}
+
+.crx-phone-payment-app {
+    --crx-pay-bg: #f4f6fb;
+    --crx-pay-panel: #ffffff;
+    --crx-pay-ink: #111827;
+    --crx-pay-muted: #6b7280;
+    --crx-pay-accent: #d71920;
+    --crx-pay-accent-2: #0a4ea3;
+    --crx-pay-border: rgba(17, 24, 39, 0.1);
+    --crx-pay-shadow: rgba(15, 23, 42, 0.1);
+    background: var(--crx-pay-bg);
+    color: var(--crx-pay-ink);
+
+    &.is-bofa,
+    & .crx-phone-payment-bank-screen.is-bofa {
+        --crx-pay-bg: #f3f6fb;
+        --crx-pay-accent: #d71920;
+        --crx-pay-accent-2: #064c9b;
+        --crx-pay-header: linear-gradient(140deg, #d71920 0%, #064c9b 100%);
+    }
+
+    &.is-kb,
+    & .crx-phone-payment-bank-screen.is-kb {
+        --crx-pay-bg: #efefef;
+        --crx-pay-accent: #ffd136;
+        --crx-pay-accent-2: #3f3828;
+        --crx-pay-header: linear-gradient(140deg, #ffd338 0%, #3f3828 100%);
+    }
+
+    & .crx-phone-payment-bank-screen {
+        display: none;
+        height: 100%;
+        background: var(--crx-pay-bg);
+        color: var(--crx-pay-ink);
+    }
+
+    & .crx-phone-payment-bank-screen.is-active-bank {
+        display: block;
+    }
+
+    & .crx-phone-payment-header-bofa,
+    & .crx-phone-payment-summary-bofa,
+    & .crx-phone-payment-header-kb,
+    & .crx-phone-payment-summary-kb {
+        letter-spacing: 0;
+    }
+
+    &.is-translation-visible {
+        & .crx-phone-payment-transaction.has-translation .crx-phone-payment-description-original,
+        & .crx-phone-payment-transaction.has-translation .crx-phone-payment-detail-original {
+            display: none;
+        }
+
+        & .crx-phone-payment-description-translation,
+        & .crx-phone-payment-detail-translation {
+            display: block;
+        }
+    }
+
+    & .crx-phone-payment-scroll {
+        height: 100%;
+        overflow-y: auto;
+        background: var(--crx-pay-bg);
+        scrollbar-width: none;
+    }
+
+    & .crx-phone-payment-header {
+        width: 100%;
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 128px;
+        padding: 58px 18px 10px;
+
+        & div.crx-phone-payment-header-copy {
+            display: grid;
+            gap: 4px;
+            min-width: 0;
+        }
+
+        & div:not(.crx-phone-payment-header-copy) {
+            display: grid;
+            grid-template-columns: auto auto;
+            gap: 4px;
+            min-width: 0;
+            flex: 0 0 auto;
+        }
+
+        & span {
+            font-size: 0.76rem;
+            font-weight: 800;
+            opacity: 0.88;
+        }
+
+        & strong {
+            font-size: 1.45rem;
+            line-height: 1.15;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+    }
+
+    & .crx-phone-payment-translate {
+        flex: 0 0 auto;
+        font: inherit;
+        font-size: 0.76rem;
+        cursor: pointer;
+        display: inline-grid;
+        place-items: center;
+        border: none;
+        background: transparent;
+    }
+
+    & .crx-phone-payment-summary {
+        display: grid;
+        gap: 10px;
+        padding: 14px 14px 10px;
+    }
+
+    & .crx-phone-payment-summary-card {
+        display: grid;
+        grid-template-columns: 38px minmax(0, 1fr);
+        grid-template-areas:
+        "icon label"
+        "icon value";
+        align-items: center;
+        column-gap: 12px;
+        min-height: 76px;
+        padding: 14px;
+        border-radius: 18px;
+        background: var(--crx-pay-panel);
+
+
+
+
+
+        & i {
+            grid-area: icon;
+            display: inline-grid;
+            place-items: center;
+            width: 38px;
+            height: 38px;
+            border-radius: 999px;
+            background: var(--crx-pay-accent);
+            color: #333333;
+            font-size: 18px;
+        }
+
+        & .crx-phone-payment-ttl {
+            grid-area: label;
+            color: var(--crx-pay-muted);
+            font-size: 0.78rem;
+            font-weight: 800;
+        }
+
+        & .crx-phone-payment-summary-amount {
+            grid-area: value;
+            overflow-wrap: anywhere;
+            line-height: 1.1;
+            text-align: right;
+
+            & strong {
+                font-size: 1.42rem;
+            }
+        }
+    }
+
+    & .crx-phone-payment-card {
+        margin: 4px 0 28px;
+        background: var(--crx-pay-panel);
+    }
+
+    & .crx-phone-payment-list-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 16px 18px 10px;
+        color: var(--crx-pay-muted);
+        font-size: 0.78rem;
+        font-weight: 900;
+    }
+
+    & .crx-phone-payment-list {
+        display: grid;
+        margin: 0;
+        padding: 0 18px;
+        list-style: none;
+    }
+
+    & .crx-phone-payment-transaction {
+        position: relative;
+        display: grid;
+        grid-template-rows: repeat(2, auto);
+        gap: 10px;
+        align-items: center;
+        min-height: 70px;
+        padding: 14px 0;
+        border-top: 1px solid var(--crx-pay-border);
+
+        & .crx-phone-payment-edit {
+            position: absolute;
+            top: 10px;
+            right: -8px;
+            display: inline-grid;
+            place-items: center;
+            border: 0;
+            border-radius: 999px;
+            background: transparent;
+            color: var(--crx-pay-muted);
+            cursor: pointer;
+        }
+
+        & .crx-phone-payment-edit:hover {
+            background: color-mix(in srgb, var(--crx-pay-accent) 10%, transparent);
+            color: var(--crx-pay-accent);
+        }
+    }
+
+    & .crx-phone-payment-transaction-icon {
+        display: inline-grid;
+        place-items: center;
+        width: 34px;
+        height: 34px;
+        border-radius: 12px;
+        background: color-mix(in srgb, var(--crx-pay-accent-2) 12%, #ffffff);
+        color: var(--crx-pay-accent-2);
+        font-size: 0.9rem;
+    }
+
+    & .crx-phone-payment-transaction-main {
+        display: grid;
+        gap: 4px;
+        min-width: 0;
+    }
+
+    & .crx-phone-payment-description-original,
+    & .crx-phone-payment-description-translation {
+        overflow: hidden;
+        color: var(--crx-pay-ink);
+        font-size: 1.1rem;
+        font-weight: 850;
+        line-height: 1.25;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    & .crx-phone-payment-description-translation {
+        display: none;
+    }
+
+    & .crx-phone-payment-detail-original,
+    & .crx-phone-payment-detail-translation {
+        overflow: hidden;
+        color: rgba(0, 0, 0, 0.6);
+        font-size: 0.9rem;
+        line-height: 1.3;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    & .crx-phone-payment-detail-translation {
+        display: none;
+    }
+
+    & .crx-phone-payment-time {
+        color: var(--crx-pay-muted);
+        font-size: 0.74rem;
+        margin-bottom: 0.4rem;
+    }
+
+    & .crx-phone-payment-amount {
+        justify-self: end;
+        overflow-wrap: anywhere;
+        color: var(--crx-pay-ink);
+        text-align: right;
+
+        &.is-positive {
+            color: #2467e2;
+            font-size: 1.1rem;
+        }
+        &.is-negative strong {
+            color: #e42424;
+            font-size: 1.1rem;
+        }
+    }
+
+    & .crx-phone-payment-more {
+        padding: 12px 14px 16px;
+        color: var(--crx-pay-muted);
+        font-size: 0.76rem;
+        font-weight: 800;
+        text-align: center;
+
+        &.is-hidden {
+            display: none;
+        }
+    }
+}
+
+.crx-phone-payment-app .crx-phone-payment-deletebar {
+    display: none;
+    gap: 8px;
+    justify-content: flex-end;
+    padding: 0 14px 10px;
+}
+
+.crx-phone-payment-app.is-delete-mode .crx-phone-payment-bank-screen.is-active-bank .crx-phone-payment-deletebar {
+    display: flex;
+}
+
+.crx-phone-payment-app .crx-phone-payment-deletebar button {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 32px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--crx-pay-panel);
+    color: var(--crx-pay-accent-2);
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 800;
+    padding: 0 10px;
+    cursor: pointer;
+}
+
+.crx-phone-payment-app .crx-phone-payment-deletebar .crx-phone-payment-delete-all {
+    color: #d33b3b;
+}
+
+.crx-phone-payment-app .crx-phone-payment-menu {
+    border: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+}
+
+.crx-phone-payment-app .crx-phone-payment-menu.is-active {
+    color: #d33b3b;
+}
+
+.crx-phone-payment-app .crx-phone-payment-transaction-check {
+    display: none;
+    position: absolute;
+    top: 24px;
+    left: -2px;
+    z-index: 2;
+}
+
+.crx-phone-payment-app.is-delete-mode .crx-phone-payment-bank-screen.is-active-bank .crx-phone-payment-transaction-check {
+    display: block;
+}
+
+.crx-phone-payment-app.is-delete-mode .crx-phone-payment-bank-screen.is-active-bank .crx-phone-payment-transaction {
+    padding-left: 28px;
+}

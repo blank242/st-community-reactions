@@ -6,21 +6,32 @@ globalThis.CommunityReactionsExtension = (() => {
     const PHONE_WALLPAPER_FILE_PATH = '/user/files/' + PHONE_WALLPAPER_FILE_NAME;
     const PHONE_WALLPAPER_STORAGE_KEY = MODULE_NAME + ':phone-wallpaper';
     const PHONE_WALLPAPER_MAX_DIMENSION = 1800;
-    const EXTENSION_BASE_URL = (() => {
-        if (typeof import.meta?.url === 'string') {
-            return new URL('.', import.meta.url).href;
-        }
+    const EXTENSION_ENTRY_URL = (() => {
         const src = document.currentScript?.src;
-        return src
-            ? new URL('.', src).href
+        if (src) {
+            return src;
+        }
+        if (typeof import.meta?.url === 'string') {
+            return import.meta.url;
+        }
+        return '';
+    })();
+    const EXTENSION_BASE_URL = (() => {
+        return EXTENSION_ENTRY_URL
+            ? new URL('.', EXTENSION_ENTRY_URL).href
             : new URL(`/scripts/extensions/third-party/${MODULE_NAME}/`, window.location.href).href;
     })();
-    const TEMPLATE_SCRIPT_VERSION = '20260626-google-result-edit-1';
-    const PROMPT_SCRIPT_VERSION = '20260624-custom-country-1';
-    const STORAGE_SCRIPT_VERSION = '20260624-custom-country-1';
-    const PHONE_SCRIPT_VERSION = '20260626-phone-badges-inert-1';
-    const PHONE_STYLE_VERSION = '20260626-phone-badges-inert-1';
-    const PHONE_PAYMENT_STYLE_VERSION = '20260626-payment-delete-1';
+    const EXTENSION_CACHE_VERSION = (() => {
+        const fallbackVersion = '20260628-structure-1';
+        if (!EXTENSION_ENTRY_URL) {
+            return fallbackVersion;
+        }
+        try {
+            return new URL(EXTENSION_ENTRY_URL, window.location.href).searchParams.get('v') || fallbackVersion;
+        } catch {
+            return fallbackVersion;
+        }
+    })();
     const PHONE_WALLPAPER_TEXT = Object.freeze({
         title: '배경화면 설정',
         image: '배경화면 이미지',
@@ -35,14 +46,15 @@ globalThis.CommunityReactionsExtension = (() => {
         resetFailed: '기본 배경화면 설정에 실패했습니다.',
     });
     const PHONE_MODULE_SCRIPT_GROUPS = Object.freeze([
-        Object.freeze(['phone-registry.js']),
+        Object.freeze(['phone/registry.js']),
         Object.freeze([
-            'phone-home.js',
-            'phone-payment-helpers.js',
-            'phone-app-safari.js',
-            'phone-app-static.js',
+            'phone/home.js',
+            'phone/payment-helpers.js',
+            'phone/app-safari.js',
+            'phone/app-static.js',
+            'phone/app-community.js',
         ]),
-        Object.freeze(['phone-app-payment-history.js']),
+        Object.freeze(['phone/app-payment-history.js']),
     ]);
     const FILE_PREFIX = 'crx';
     const JSON_INDENT = 2;
@@ -74,7 +86,7 @@ globalThis.CommunityReactionsExtension = (() => {
             promptName: 'Twitter timeline',
         },
         daumCafe: {
-            label: 'Cafe',
+            label: '다음카페',
             supportsCountry: false,
             fixedCountry: 'korea',
             minPosts: 5,
@@ -94,7 +106,7 @@ globalThis.CommunityReactionsExtension = (() => {
             promptName: 'Everytime anonymous board',
         },
         webNovelReview: {
-            label: '소설 리뷰',
+            label: '리디북스',
             supportsCountry: false,
             fixedCountry: 'korea',
             minPosts: 6,
@@ -150,6 +162,30 @@ globalThis.CommunityReactionsExtension = (() => {
         },
     });
     const PHONE_APP_KEYS = Object.freeze(Object.keys(PHONE_APP_PRESETS));
+    const APP_PRESETS = Object.freeze({
+        daumCafe: {
+            id: 'daumCafe',
+            label: '다음카페',
+            phoneAppId: 'communityDaumCafe',
+        },
+        twitter: {
+            id: 'twitter',
+            label: 'Twitter',
+            phoneAppId: 'communityTwitter',
+        },
+        everytime: {
+            id: 'everytime',
+            label: '에브리타임',
+            phoneAppId: 'communityEverytime',
+        },
+        webNovelReview: {
+            id: 'webNovelReview',
+            label: '리디북스',
+            phoneAppId: 'communityWebNovelReview',
+        },
+    });
+    const APP_ORDER = Object.freeze(['daumCafe', 'twitter', 'everytime', 'webNovelReview']);
+    const COMMUNITY_PHONE_APP_ID_TO_KEY = Object.freeze(Object.fromEntries(APP_ORDER.map(appKey => [APP_PRESETS[appKey].phoneAppId, appKey])));
     const PHONE_VIEWER_ITEMS_PER_APP = 16;
     const ADD_OPTION_VALUE = '__add__';
 
@@ -208,6 +244,8 @@ globalThis.CommunityReactionsExtension = (() => {
         phoneNotificationBadge: null,
         activeResult: null,
         activeIndex: null,
+        viewerMode: '',
+        activeAppKey: '',
         activeCommunity: '',
         activeViewKey: '',
         latestCommunityResultId: '',
@@ -234,6 +272,11 @@ globalThis.CommunityReactionsExtension = (() => {
         const span = document.createElement('span');
         span.textContent = value == null ? '' : String(value);
         return span.innerHTML;
+    }
+
+    function withCacheVersion(fileName) {
+        const separator = fileName.includes('?') ? '&' : '?';
+        return `${fileName}${separator}v=${encodeURIComponent(EXTENSION_CACHE_VERSION)}`;
     }
 
     function loadExtensionScript(fileName) {
@@ -266,6 +309,10 @@ globalThis.CommunityReactionsExtension = (() => {
         link.href = href;
         link.dataset.crxStyle = href;
         document.head.appendChild(link);
+    }
+
+    function initializeStyles() {
+        loadExtensionStyle(withCacheVersion('style/style.css'));
     }
 
     function createId(prefix = 'crx') {
@@ -988,6 +1035,8 @@ globalThis.CommunityReactionsExtension = (() => {
         state.viewerModal = null;
         state.activeResult = null;
         state.activeIndex = null;
+        state.viewerMode = '';
+        state.activeAppKey = '';
         state.activeCommunity = '';
         state.activeViewKey = '';
         state.phoneNotificationBadge = null;
@@ -1074,7 +1123,7 @@ globalThis.CommunityReactionsExtension = (() => {
             '</div>',
             '<div class="crx-footer">',
             '<button id="crx-reset-phone-wallpaper" class="crx-secondary-button" type="button">' + escapeHtml(PHONE_WALLPAPER_TEXT.defaultImage) + '</button>',
-            '<button id="crx-upload-phone-wallpaper" class="crx-primary-button" type="button" disabled>' + escapeHtml(PHONE_WALLPAPER_TEXT.upload) + '</button>',
+            '<button id="crx-upload-phone-wallpaper" class="crx-primary-button" type="button">' + escapeHtml(PHONE_WALLPAPER_TEXT.upload) + '</button>',
             '</div>',
             '</div>',
         ].join('');
@@ -1100,19 +1149,40 @@ globalThis.CommunityReactionsExtension = (() => {
         modal.querySelector('.crx-modal-backdrop')?.addEventListener('click', close);
         root.querySelector('#crx-close-phone-wallpaper')?.addEventListener('click', close);
         root.querySelector('#crx-reset-phone-wallpaper')?.addEventListener('click', () => void resetPhoneWallpaperToDefault(root));
-        uploadButton.addEventListener('click', () => void handlePhoneWallpaperUpload(root));
+        uploadButton.addEventListener('click', () => {
+            const file = fileInput.files?.[0] || null;
+            if (!file) {
+                root._crxUploadAfterPick = true;
+                root._crxOpeningPickerFromUpload = true;
+                fileInput.click();
+                return;
+            }
+            void handlePhoneWallpaperUpload(root);
+        });
+        fileInput.addEventListener('click', () => {
+            if (root._crxOpeningPickerFromUpload) {
+                root._crxOpeningPickerFromUpload = false;
+                return;
+            }
+            root._crxUploadAfterPick = false;
+        });
         fileInput.addEventListener('change', () => {
             const file = fileInput.files?.[0] || null;
             if (file && !file.type.startsWith('image/')) {
                 fileInput.value = '';
                 setPhoneWallpaperPreviewUrl(modal, '');
-                uploadButton.disabled = true;
+                root._crxUploadAfterPick = false;
+                uploadButton.disabled = false;
                 toastr.warning(PHONE_WALLPAPER_TEXT.imageOnly);
                 return;
             }
 
             setPhoneWallpaperPreviewUrl(modal, file ? URL.createObjectURL(file) : '');
-            uploadButton.disabled = !file;
+            uploadButton.disabled = false;
+            if (file && root._crxUploadAfterPick) {
+                root._crxUploadAfterPick = false;
+                void handlePhoneWallpaperUpload(root);
+            }
         });
     }
 
@@ -1163,8 +1233,7 @@ globalThis.CommunityReactionsExtension = (() => {
         } finally {
             if (state.wallpaperModal?.contains(root)) {
                 setPhoneWallpaperButtonsDisabled(root, false);
-                const hasFile = Boolean(root.querySelector('#crx-phone-wallpaper-file')?.files?.[0]);
-                root.querySelector('#crx-upload-phone-wallpaper').disabled = !hasFile;
+                root.querySelector('#crx-upload-phone-wallpaper').disabled = false;
             }
         }
     }
@@ -1182,8 +1251,7 @@ globalThis.CommunityReactionsExtension = (() => {
         } finally {
             if (state.wallpaperModal?.contains(root)) {
                 setPhoneWallpaperButtonsDisabled(root, false);
-                const hasFile = Boolean(root.querySelector('#crx-phone-wallpaper-file')?.files?.[0]);
-                root.querySelector('#crx-upload-phone-wallpaper').disabled = !hasFile;
+                root.querySelector('#crx-upload-phone-wallpaper').disabled = false;
             }
         }
     }
@@ -1304,24 +1372,74 @@ globalThis.CommunityReactionsExtension = (() => {
     }
 
     function openPhoneGenerateComposerFromViewer() {
-        closeViewer({ animatePhone: true });
-        window.setTimeout(() => {
-            void openComposerInPhoneMode();
-        }, 540);
+        void openPhoneComposerApp();
     }
 
     async function openComposerInPhoneMode() {
-        if (!state.composerModal) {
-            await openComposer();
-        }
-        const root = state.composerModal?.querySelector('.crx-popup');
-        const modeSelect = root?.querySelector('#crx-reaction-mode');
-        if (!root || !modeSelect) {
+        await openPhoneComposerApp('phone');
+    }
+
+    async function openPhoneComposerApp(mode = '') {
+        await initializeStorage();
+        await initializeTemplates();
+        await initializePrompts();
+        await initializePhone();
+
+        const context = getContextSafe();
+        if (!context?.chat?.length) {
+            toastr.warning('대화 내역이 없습니다.');
             return;
         }
-        modeSelect.value = 'phone';
-        modeSelect.dispatchEvent(new Event('change', { bubbles: true }));
-        syncComposerControls(root);
+
+        const chatPk = ensureChatPk(context);
+        const index = await loadIndex(chatPk);
+        closeComposer();
+        if (!isPhoneViewerModal()) {
+            await openPhoneViewer(null, index, 'phone:googleSearch');
+        }
+
+        const modal = state.viewerModal;
+        if (!modal) {
+            return;
+        }
+        renderPhoneComposerApp(modal, context, index, mode);
+    }
+
+    function renderPhoneComposerApp(modal, context = getContextSafe(), index = state.activeIndex, mode = '') {
+        if (!modal || !context?.chat?.length) {
+            return;
+        }
+        const actualIndex = index || createEmptyIndex(ensureChatPk(context));
+        const chatPk = actualIndex.chat_pk || ensureChatPk(context);
+        const section = modal.querySelector('.crx-phone-composer-app');
+        if (!section) {
+            return;
+        }
+
+        hideActiveHelpTooltip();
+        openPhoneAppById(modal, 'generate');
+        section.innerHTML = templates.buildPhoneComposerHtml(context, actualIndex);
+        const root = section.querySelector('.crx-phone-composer');
+        if (!root) {
+            return;
+        }
+
+        setComposerIndex(root, actualIndex);
+        state.viewerMode = 'phoneComposer';
+        state.activeResult = null;
+        state.activeIndex = actualIndex;
+        state.activeAppKey = '';
+        state.activeCommunity = 'generate';
+        state.activeViewKey = 'phone:generate';
+        bindComposerControls(root, context, chatPk, { embeddedPhone: true, phoneModal: modal });
+        if (mode) {
+            const modeSelect = root.querySelector('#crx-reaction-mode');
+            if (modeSelect) {
+                modeSelect.value = mode;
+                modeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                syncComposerControls(root);
+            }
+        }
     }
 
     function animatePhoneViewerClose(modal) {
@@ -1372,6 +1490,8 @@ globalThis.CommunityReactionsExtension = (() => {
     function createTemplateDeps() {
         return {
             ADD_OPTION_VALUE,
+            APP_ORDER,
+            APP_PRESETS,
             COUNTRY_PRESETS,
             DEFAULT_MAX_TOKENS,
             LANGUAGE_PRESETS,
@@ -1400,7 +1520,8 @@ globalThis.CommunityReactionsExtension = (() => {
             return;
         }
 
-        await loadExtensionScript(`templates.js?v=${TEMPLATE_SCRIPT_VERSION}`);
+        initializeStyles();
+        await loadExtensionScript(withCacheVersion('templates.js'));
         const factory = globalThis.CommunityReactionsTemplates?.create;
         if (typeof factory !== 'function') {
             throw new Error('CommunityReactionsTemplates.create is not available.');
@@ -1444,7 +1565,7 @@ globalThis.CommunityReactionsExtension = (() => {
             return;
         }
 
-        await loadExtensionScript(`prompts.js?v=${PROMPT_SCRIPT_VERSION}`);
+        await loadExtensionScript(withCacheVersion('prompts.js'));
         const factory = globalThis.CommunityReactionsPrompts?.create;
         if (typeof factory !== 'function') {
             throw new Error('CommunityReactionsPrompts.create is not available.');
@@ -1470,13 +1591,14 @@ globalThis.CommunityReactionsExtension = (() => {
             return;
         }
 
-        loadExtensionStyle(`phone.css?v=${PHONE_STYLE_VERSION}`);
-        loadExtensionStyle(`phone-payments.css?v=${PHONE_PAYMENT_STYLE_VERSION}`);
+        initializeStyles();
+        loadExtensionStyle(withCacheVersion('style/phone.css'));
+        loadExtensionStyle(withCacheVersion('style/phone-payments.css'));
         applyPhoneWallpaperPreference();
         for (const scriptGroup of PHONE_MODULE_SCRIPT_GROUPS) {
-            await Promise.all(scriptGroup.map(scriptName => loadExtensionScript(`${scriptName}?v=${PHONE_SCRIPT_VERSION}`)));
+            await Promise.all(scriptGroup.map(scriptName => loadExtensionScript(withCacheVersion(scriptName))));
         }
-        await loadExtensionScript(`phone.js?v=${PHONE_SCRIPT_VERSION}`);
+        await loadExtensionScript(withCacheVersion('phone/index.js'));
         const factory = globalThis.CommunityReactionsPhone?.create;
         if (typeof factory !== 'function') {
             throw new Error('CommunityReactionsPhone.create is not available.');
@@ -1501,7 +1623,7 @@ globalThis.CommunityReactionsExtension = (() => {
             return;
         }
 
-        await loadExtensionScript(`storage.js?v=${STORAGE_SCRIPT_VERSION}`);
+        await loadExtensionScript(withCacheVersion('storage.js'));
         const factory = globalThis.CommunityReactionsStorage?.create;
         if (typeof factory !== 'function') {
             throw new Error('CommunityReactionsStorage.create is not available.');
@@ -1685,7 +1807,7 @@ globalThis.CommunityReactionsExtension = (() => {
         root.querySelector('#crx-post-count-label').textContent = isPhone
             ? PHONE_APP_PRESETS[phoneAppId]?.countLabel || '항목 수'
             : '게시글 수';
-        root.querySelector('#crx-open-library').textContent = isPhone ? '휴대폰 열기' : '커뮤니티 보기';
+        root.querySelector('#crx-open-library').textContent = '휴대폰 확인하기';
         const countryHelp = root.querySelector('[data-crx-help-text="국가"]');
         if (countryHelp) {
             countryHelp.textContent = isPhone
@@ -2540,8 +2662,39 @@ globalThis.CommunityReactionsExtension = (() => {
         const root = modal.querySelector('.crx-popup');
         setComposerIndex(root, index);
 
-        root.querySelector('#crx-close-composer').addEventListener('click', closeComposer);
-        modal.querySelector('.crx-modal-backdrop').addEventListener('click', closeComposer);
+        bindComposerControls(root, context, chatPk, { modal });
+    }
+
+    function bindComposerControls(root, context, chatPk, options = {}) {
+        const embeddedPhone = Boolean(options.embeddedPhone);
+        const phoneModal = options.phoneModal || state.viewerModal;
+        const closeComposerView = () => {
+            hideActiveHelpTooltip();
+            if (embeddedPhone) {
+                if (phoneModal) {
+                    showPhoneHome(phoneModal);
+                }
+                return;
+            }
+            closeComposer();
+        };
+
+        root.querySelector('#crx-close-composer')?.addEventListener('click', closeComposerView);
+        root.querySelector('#crx-back-phone-home')?.addEventListener('click', event => {
+            event.preventDefault();
+            hideActiveHelpTooltip();
+            if (embeddedPhone) {
+                if (phoneModal) {
+                    showPhoneHome(phoneModal);
+                }
+                return;
+            }
+            closeComposer();
+            void openPhoneHome();
+        });
+        if (!embeddedPhone) {
+            options.modal?.querySelector('.crx-modal-backdrop')?.addEventListener('click', closeComposer);
+        }
         root.querySelector('#crx-reaction-mode').addEventListener('change', () => syncComposerControls(root));
         root.querySelector('#crx-reader-community').addEventListener('change', () => syncComposerControls(root));
         root.querySelector('#crx-reader-community-site').addEventListener('change', () => syncComposerControls(root));
@@ -2604,8 +2757,13 @@ globalThis.CommunityReactionsExtension = (() => {
         root.querySelector('#crx-save-topic').addEventListener('click', () => void handleSaveNpcTopic(root, chatPk));
         root.querySelector('#crx-delete-topic').addEventListener('click', () => void handleDeleteNpcTopic(root, chatPk));
         root.querySelector('#crx-open-library').addEventListener('click', () => {
-            const mode = root.querySelector('#crx-reaction-mode')?.value || 'reader';
-            void (mode === 'phone' ? openPhoneLibrary() : openLibrary());
+            if (embeddedPhone) {
+                if (phoneModal) {
+                    showPhoneHome(phoneModal);
+                }
+                return;
+            }
+            void openPhoneHome();
         });
         root.querySelector('#crx-generate').addEventListener('click', () => void handleGenerate(root));
         syncComposerControls(root);
@@ -2931,21 +3089,24 @@ globalThis.CommunityReactionsExtension = (() => {
         }
     }
 
-    async function openLibrary() {
+    async function openPhoneHome(index = null) {
+        await initializeStorage();
+        await initializePhone();
+        closeComposer();
         const context = getContextSafe();
-        const chatPk = ensureChatPk(context);
-        const index = await loadIndex(chatPk);
-
-        const firstItem = index.items.find(item => getItemReactionMode(item) !== 'phone');
-        if (!firstItem) {
-            toastr.info('저장된 커뮤니티 반응이 없습니다.');
+        if (!index && !context?.chatMetadata) {
+            toastr.warning('대화를 먼저 열어주세요.');
             return;
         }
-
-        openViewerFromItem(firstItem, index, getItemViewKey(firstItem));
+        const actualIndex = index || await loadIndex(ensureChatPk(context));
+        await openPhoneViewer(null, actualIndex, 'phone:googleSearch');
     }
 
-    function openViewerFromItem(item, index = null, viewKey = null) {
+    async function openLibrary() {
+        await openPhoneHome();
+    }
+
+    function openViewerFromItem(item, index = null, viewKey = null, appKey = '') {
         if (!item) {
             return;
         }
@@ -2957,72 +3118,36 @@ globalThis.CommunityReactionsExtension = (() => {
         closeViewer();
         const actualIndex = index || { items: [item] };
         const activeViewKey = viewKey || getItemViewKey(item);
-        state.activeResult = null;
-        state.activeIndex = actualIndex;
-        state.activeViewKey = activeViewKey;
-        resetCommunityState(actualIndex, activeViewKey, item.id);
-        state.activeCommunity = item.site || state.communityItems[0]?.site || '';
-        state.renderedCount = 0;
-        state.deleteMode = false;
-        state.boardDetailPostKey = null;
-        state.boardListScrollTop = 0;
-        state.boardListRenderedCount = 0;
-
-        const modal = createModal(templates.buildViewerHtml(null, actualIndex), 'crx-viewer-modal');
-        state.viewerModal = modal;
-        bindViewer(modal, actualIndex);
-        void renderMorePosts().catch(error => {
+        const activeAppKey = getAppKeyFromSite(appKey) || getItemAppKey(item, actualIndex);
+        void openCommunityAppInPhone(activeAppKey, actualIndex, activeViewKey).catch(error => {
             console.warn('[Community Reactions] Failed to render community viewer.', error);
-            toastr.error('커뮤니티 보기를 불러오지 못했습니다.');
+            toastr.error('커뮤니티 반응을 불러오지 못했습니다.');
         });
     }
 
-    async function openViewer(result, index = null, viewKey = null) {
+    async function openViewer(result, index = null, viewKey = null, appKey = '') {
         if (result?.generation?.reaction_mode === 'phone') {
             await openPhoneViewer(result, index, viewKey);
             return;
         }
-        closeViewer();
         const context = getContextSafe();
-        const chatPk = result.chat_pk || ensureChatPk(context);
+        const chatPk = result.chat_pk || index?.chat_pk || ensureChatPk(context);
         const actualIndex = index || await loadIndex(chatPk);
-        state.activeResult = result;
-        state.activeIndex = actualIndex;
-        state.activeViewKey = viewKey || getResultViewKey(result) || getItemViewKey(actualIndex.items[0]) || '';
-        resetCommunityState(actualIndex, state.activeViewKey, result.id);
-        state.activeCommunity = state.communityItems[0]?.site || result.generation?.site || '';
-        state.renderedCount = 0;
-        state.deleteMode = false;
-        state.boardDetailPostKey = null;
-        state.boardListScrollTop = 0;
-        state.boardListRenderedCount = 0;
-        if (result?.id) {
-            state.communityResults.set(result.id, result);
-        }
-
-        const modal = createModal(templates.buildViewerHtml(result, actualIndex), 'crx-viewer-modal');
-        state.viewerModal = modal;
-        bindViewer(modal, actualIndex);
-        await renderMorePosts();
+        const resultViewKey = viewKey || getResultViewKey(result);
+        const activeAppKey = getAppKeyFromSite(appKey)
+            || getViewAppKey(actualIndex, resultViewKey)
+            || getResultAppKey(result);
+        await openCommunityAppInPhone(activeAppKey, actualIndex, resultViewKey, result);
     }
 
     async function openPhoneLibrary() {
-        await initializePhone();
-        const context = getContextSafe();
-        const chatPk = ensureChatPk(context);
-        const index = await loadIndex(chatPk);
-        const firstItem = index.items.find(item => getItemReactionMode(item) === 'phone');
-        if (!firstItem) {
-            toastr.info('저장된 휴대폰 결과가 없습니다.');
-            return;
-        }
-
-        await openPhoneViewerFromItem(firstItem, index, getItemViewKey(firstItem));
+        await openPhoneHome();
     }
 
     async function openPhoneViewerFromItem(item, index = null, viewKey = null) {
         await initializePhone();
         if (!item) {
+            await openPhoneViewer(null, index, 'phone:googleSearch');
             return;
         }
         const context = getContextSafe();
@@ -3035,16 +3160,18 @@ globalThis.CommunityReactionsExtension = (() => {
         await initializePhone();
         closeViewer();
         const context = getContextSafe();
-        const chatPk = result?.chat_pk || ensureChatPk(context);
+        const chatPk = result?.chat_pk || index?.chat_pk || ensureChatPk(context);
         const actualIndex = index || await loadIndex(chatPk);
         const activeAppId = getPhoneAppOrDefault(String(viewKey || getResultViewKey(result)).replace(/^phone:/, '') || result?.generation?.phone_app_id || result?.generation?.site);
 
         state.activeResult = result;
         state.activeIndex = actualIndex;
+        state.viewerMode = 'phone';
+        state.activeAppKey = '';
         state.activeViewKey = `phone:${activeAppId}`;
         state.activeCommunity = activeAppId;
         state.phoneNotificationBadge = options.notificationBadge || null;
-        const initialApps = getInitialPhoneViewerApps(result, activeAppId);
+        const initialApps = getInitialPhoneViewerApps(result, activeAppId, actualIndex);
         const modal = createModal(phone.buildPhoneViewerHtml({ apps: initialApps, activeAppId, notificationBadge: state.phoneNotificationBadge }), 'crx-phone-viewer-modal');
         state.viewerModal = modal;
         bindPhoneViewerFrame(modal);
@@ -3052,23 +3179,19 @@ globalThis.CommunityReactionsExtension = (() => {
         void hydratePhoneViewerApps(modal, actualIndex, result, activeAppId);
     }
 
-    function getInitialPhoneViewerApps(result, activeAppId) {
-        if (result?.generation?.reaction_mode === 'phone') {
-            const activeApp = phone.mergePhoneResults([result], activeAppId);
-            if (phone.hasPhoneAppContent(activeApp)) {
-                return [activeApp];
+    function getInitialPhoneViewerApps(result, activeAppId, index = null) {
+        const phoneApps = PHONE_APP_KEYS.map(appId => {
+            if (result?.generation?.reaction_mode === 'phone' && appId === activeAppId) {
+                return phone.mergePhoneResults([result], appId);
             }
-        }
-        return [phone.createEmptyPhoneAppData(activeAppId)];
+            return phone.createEmptyPhoneAppData(appId);
+        });
+        return [...phoneApps, ...getCommunityPhoneApps(index)];
     }
 
     async function hydratePhoneViewerApps(modal, index, preferredResult = null, activeAppId = 'googleSearch') {
         const apps = await collectPhoneViewerApps(index, preferredResult, activeAppId);
         if (state.viewerModal !== modal) {
-            return;
-        }
-        if (!apps.some(app => phone.hasPhoneAppContent(app))) {
-            toastr.info('표시할 휴대폰 결과가 없습니다.');
             return;
         }
 
@@ -3087,6 +3210,11 @@ globalThis.CommunityReactionsExtension = (() => {
             || currentPopup.querySelector('.crx-phone-payment-bank-screen.is-active-bank')?.dataset.paymentBank
             || '';
         const keepAppOpen = Boolean(activeAppId && currentDevice?.classList.contains('is-app-open'));
+        const activeCommunityAppKey = currentDevice?.dataset.activeCommunityApp || (state.viewerMode === 'phoneCommunityApp' ? state.activeAppKey : '');
+        const activeCommunityViewKey = activeCommunityAppKey ? state.activeViewKey : '';
+        const keepComposerOpen = activeAppId === 'generate' && state.viewerMode === 'phoneComposer';
+        const activeFolder = currentDevice?.dataset.activeFolder || '';
+        const keepFolderOpen = Boolean(activeFolder && currentDevice?.classList.contains('is-folder-open'));
 
         const template = document.createElement('template');
         template.innerHTML = html.trim();
@@ -3098,6 +3226,19 @@ globalThis.CommunityReactionsExtension = (() => {
         currentPopup.replaceChildren(...Array.from(nextPopup.childNodes));
         if (keepAppOpen) {
             openPhoneAppById(modal, activeAppId, { paymentBankTheme: activePaymentBank });
+        }
+        if (activeCommunityAppKey) {
+            const communityPhoneAppId = getCommunityPhoneAppId(activeCommunityAppKey);
+            if (communityPhoneAppId) {
+                openPhoneAppById(modal, communityPhoneAppId);
+                void renderCommunityPhoneApp(modal, activeCommunityAppKey, state.activeIndex, activeCommunityViewKey);
+            }
+        }
+        if (keepComposerOpen) {
+            renderPhoneComposerApp(modal, getContextSafe(), state.activeIndex);
+        }
+        if (keepFolderOpen) {
+            openPhoneFolder(modal, activeFolder);
         }
     }
 
@@ -3120,12 +3261,125 @@ globalThis.CommunityReactionsExtension = (() => {
                 }
                 results.push(itemResult);
             }
-            if (results.length || appId === preferredAppId) {
-                return phone.mergePhoneResults(results, appId);
-            }
-            return null;
+            return phone.mergePhoneResults(results, appId);
         }));
-        return apps.filter(app => phone.hasPhoneAppContent(app));
+        return [...apps, ...getCommunityPhoneApps(index)];
+    }
+
+    function getCommunityPhoneApps(index) {
+        return getAppSummaries(index).map(summary => {
+            const preset = APP_PRESETS[summary.appKey];
+            return {
+                app_id: preset.phoneAppId,
+                app_label: preset.label,
+                app_home_label: preset.label,
+                community_app_key: summary.appKey,
+                community_category_count: summary.categoryCount,
+                community_post_count: summary.postCount,
+                is_static: true,
+            };
+        });
+    }
+
+    function getCommunityPhoneAppId(appKey) {
+        return APP_PRESETS[getAppKeyFromSite(appKey)]?.phoneAppId || '';
+    }
+
+    function isPhoneViewerModal(modal = state.viewerModal) {
+        return Boolean(modal?.classList?.contains('crx-phone-viewer-modal'));
+    }
+
+    function buildCommunityPhonePlaceholderHtml(appKey) {
+        const label = APP_PRESETS[getAppKeyFromSite(appKey)]?.label || '커뮤니티';
+        return `
+            <div class="crx-phone-community-placeholder">
+                <span>${escapeHtml(label)}</span>
+            </div>
+        `;
+    }
+
+    function resetCommunityPhoneAppSections(modal, activeAppKey = '') {
+        modal?.querySelectorAll('.crx-phone-community-app')?.forEach(section => {
+            const appKey = section.dataset.crxCommunityApp || '';
+            section.classList.toggle('is-community-active', appKey === activeAppKey);
+            section.innerHTML = buildCommunityPhonePlaceholderHtml(appKey);
+        });
+    }
+
+    async function openCommunityAppViewer(appKey, index = null, viewKey = '') {
+        await openCommunityAppInPhone(appKey, index, viewKey);
+    }
+
+    async function openCommunityAppInPhone(appKey, index = null, viewKey = '', preferredResult = null) {
+        await initializeStorage();
+        await initializeTemplates();
+        await initializePhone();
+        const activeAppKey = getAppKeyFromSite(appKey);
+        if (!activeAppKey) {
+            return;
+        }
+
+        const context = getContextSafe();
+        const actualIndex = index || await loadIndex(ensureChatPk(context));
+        if (!isPhoneViewerModal()) {
+            await openPhoneViewer(null, actualIndex, 'phone:googleSearch');
+        }
+
+        const modal = state.viewerModal;
+        const phoneAppId = getCommunityPhoneAppId(activeAppKey);
+        if (!modal || !phoneAppId) {
+            return;
+        }
+
+        openPhoneAppById(modal, phoneAppId);
+        await renderCommunityPhoneApp(modal, activeAppKey, actualIndex, viewKey, preferredResult);
+    }
+
+    async function renderCommunityPhoneApp(modal, appKey, index, viewKey = '', preferredResult = null) {
+        const activeAppKey = getAppKeyFromSite(appKey);
+        if (!modal || !activeAppKey) {
+            return;
+        }
+
+        const actualIndex = index || state.activeIndex || createEmptyIndex('unknown');
+        const section = modal.querySelector(`.crx-phone-community-app[data-crx-community-app="${cssEscape(activeAppKey)}"]`);
+        if (!section) {
+            return;
+        }
+
+        resetCommunityPhoneAppSections(modal, activeAppKey);
+        const appItems = getAppItems(actualIndex, activeAppKey);
+        const targetViewKey = viewKey && getViewAppKey(actualIndex, viewKey) === activeAppKey ? viewKey : '';
+        const targetItem = (targetViewKey ? appItems.find(item => getItemViewKey(item) === targetViewKey) : null) || appItems[0];
+        const result = preferredResult || (targetItem ? await readJson(targetItem.path) : null);
+        const activeViewKey = targetItem ? getItemViewKey(targetItem) : '';
+
+        state.activeResult = result;
+        state.activeIndex = actualIndex;
+        state.viewerMode = 'phoneCommunityApp';
+        state.activeAppKey = activeAppKey;
+        state.activeViewKey = activeViewKey;
+        state.activeCommunity = result?.generation?.site || targetItem?.site || activeAppKey;
+        state.renderedCount = 0;
+        state.deleteMode = false;
+        state.boardDetailPostKey = null;
+        state.boardListScrollTop = 0;
+        state.boardListRenderedCount = 0;
+        resetCommunityState(actualIndex, activeViewKey, result?.id || targetItem?.id || '', activeAppKey);
+        if (result?.id) {
+            state.communityResults.set(result.id, result);
+        }
+
+        section.innerHTML = templates.buildCommunityPhoneViewerHtml(result, actualIndex);
+        modal.querySelector('.crx-phone-device')?.setAttribute('data-active-community-app', activeAppKey);
+        bindViewer(modal, actualIndex, { embeddedPhone: true });
+        if (targetItem) {
+            await renderMorePosts();
+        }
+    }
+
+    function openEmptyCommunityAppViewer(appKey, index) {
+        void openCommunityAppInPhone(appKey, index);
     }
 
     async function readResultWithIndexMetadata(item) {
@@ -3148,6 +3402,22 @@ globalThis.CommunityReactionsExtension = (() => {
 
         modal.addEventListener('click', event => {
             const target = event.target;
+            const folderClose = closestInModal(target, '[data-phone-action="closeFolder"]', modal);
+            if (folderClose) {
+                event.preventDefault();
+                event.stopPropagation();
+                closePhoneFolder(modal);
+                return;
+            }
+
+            const folderIcon = closestInModal(target, '.crx-phone-folder-icon', modal);
+            if (folderIcon) {
+                event.preventDefault();
+                event.stopPropagation();
+                openPhoneFolder(modal, folderIcon.dataset.phoneFolder || 'community');
+                return;
+            }
+
             const appIcon = closestInModal(target, '.crx-phone-app-icon', modal);
             if (appIcon) {
                 if (appIcon.dataset.phoneAction === 'close') {
@@ -3165,6 +3435,13 @@ globalThis.CommunityReactionsExtension = (() => {
                     openPhoneWallpaperSettings();
                     return;
                 }
+                if (appIcon.dataset.phoneAction === 'openCommunityApp') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    closePhoneFolder(modal);
+                    void openCommunityAppViewer(appIcon.dataset.crxCommunityApp || appIcon.dataset.communityApp || '', state.activeIndex);
+                    return;
+                }
                 if (appIcon.dataset.phoneAction === 'openGenerator') {
                     event.preventDefault();
                     event.stopPropagation();
@@ -3177,6 +3454,11 @@ globalThis.CommunityReactionsExtension = (() => {
 
             const homebar = closestInModal(target, '#crx-phone-homebar', modal);
             if (homebar) {
+                const device = modal.querySelector('.crx-phone-device');
+                if (device?.classList.contains('is-folder-open')) {
+                    closePhoneFolder(modal);
+                    return;
+                }
                 showPhoneHome(modal);
                 return;
             }
@@ -3301,7 +3583,11 @@ globalThis.CommunityReactionsExtension = (() => {
         if (!device) {
             return;
         }
+        closePhoneFolder(modal);
         device.dataset.activeApp = appId;
+        if (!getAppKeyFromSite(appId)) {
+            delete device.dataset.activeCommunityApp;
+        }
         device.classList.add('is-app-open');
         let activeApp = null;
         modal.querySelectorAll('.crx-phone-app').forEach(app => {
@@ -3315,6 +3601,32 @@ globalThis.CommunityReactionsExtension = (() => {
         if (activeApp && appId === 'paymentHistory') {
             setActivePhonePaymentBank(device, activeApp, options.paymentBankTheme || '');
         }
+    }
+
+    function openPhoneFolder(modal, folderKey = 'community') {
+        const device = modal?.querySelector('.crx-phone-device');
+        if (!device) {
+            return;
+        }
+        device.dataset.activeFolder = folderKey;
+        device.classList.add('is-folder-open');
+        modal.querySelectorAll('.crx-phone-folder-layer').forEach(layer => {
+            const active = layer.dataset.phoneFolderLayer === folderKey;
+            layer.classList.toggle('is-active', active);
+            layer.setAttribute('aria-hidden', active ? 'false' : 'true');
+        });
+    }
+
+    function closePhoneFolder(modal) {
+        const device = modal?.querySelector('.crx-phone-device');
+        if (device) {
+            delete device.dataset.activeFolder;
+            device.classList.remove('is-folder-open');
+        }
+        modal?.querySelectorAll('.crx-phone-folder-layer')?.forEach(layer => {
+            layer.classList.remove('is-active');
+            layer.setAttribute('aria-hidden', 'true');
+        });
     }
 
     function setActivePhonePaymentBank(device, app, bankTheme) {
@@ -3332,8 +3644,36 @@ globalThis.CommunityReactionsExtension = (() => {
 
     function showPhoneHome(modal) {
         const device = modal.querySelector('.crx-phone-device');
+        closePhoneFolder(modal);
         if (device) {
             delete device.dataset.activePaymentBank;
+            delete device.dataset.activeCommunityApp;
+        }
+        if (state.viewerMode === 'phoneCommunityApp') {
+            state.viewerMode = 'phone';
+            state.activeResult = null;
+            state.activeAppKey = '';
+            state.activeCommunity = '';
+            state.activeViewKey = '';
+            state.communityItems = [];
+            state.communityItemCursor = 0;
+            state.communityResults = new Map();
+            state.communityPosts = [];
+            state.communityReferenceDate = null;
+            state.hasMoreCommunityItems = false;
+            state.renderedCount = 0;
+            state.deleteMode = false;
+            state.boardDetailPostKey = null;
+            state.boardListScrollTop = 0;
+            state.boardListRenderedCount = 0;
+            resetCommunityPhoneAppSections(modal);
+        }
+        if (state.viewerMode === 'phoneComposer') {
+            hideActiveHelpTooltip();
+            state.viewerMode = 'phone';
+            state.activeResult = null;
+            state.activeCommunity = '';
+            state.activeViewKey = '';
         }
         device?.classList.remove('is-app-open');
         modal.querySelectorAll('.crx-phone-app').forEach(app => {
@@ -4056,22 +4396,43 @@ globalThis.CommunityReactionsExtension = (() => {
         list.closest('.crx-phone-payment-card')?.querySelector('.crx-phone-payment-more')?.classList.toggle('is-hidden', nextRendered >= transactions.length);
     }
 
-    function bindViewer(modal, index) {
-        modal.querySelector('#crx-close-viewer').addEventListener('click', closeViewer);
-        modal.querySelector('.crx-modal-backdrop').addEventListener('click', closeViewer);
-        modal.querySelector('#crx-post-list').addEventListener('scroll', () => void maybeLoadMoreOnScroll());
-        modal.querySelector('#crx-toggle-delete-mode').addEventListener('click', () => toggleDeleteMode());
-        modal.querySelector('#crx-community-select').addEventListener('change', async function () {
-            const firstItem = index.items.find(x => getItemViewKey(x) === this.value);
+    function bindViewer(modal, index, options = {}) {
+        const embeddedPhone = Boolean(options.embeddedPhone);
+        const closeToHome = () => {
+            if (embeddedPhone) {
+                showPhoneHome(modal);
+                return;
+            }
+            closeViewer();
+        };
+        modal.querySelector('#crx-close-viewer')?.addEventListener('click', closeToHome);
+        if (!embeddedPhone) {
+            modal.querySelector('.crx-modal-backdrop')?.addEventListener('click', closeViewer);
+        }
+        modal.querySelector('#crx-post-list')?.addEventListener('scroll', () => void maybeLoadMoreOnScroll());
+        modal.querySelector('#crx-back-phone-home')?.addEventListener('click', () => {
+            if (embeddedPhone) {
+                showPhoneHome(modal);
+                return;
+            }
+            void openPhoneHome(index);
+        });
+        modal.querySelector('#crx-toggle-delete-mode')?.addEventListener('click', () => toggleDeleteMode());
+        modal.querySelector('#crx-community-select')?.addEventListener('change', async function () {
+            const firstItem = getAppItems(index, state.activeAppKey).find(x => getItemViewKey(x) === this.value);
             if (!firstItem) {
                 return;
             }
             const result = await readJson(firstItem.path);
-            await openViewer(result, index, this.value);
+            if (embeddedPhone) {
+                await openCommunityAppInPhone(state.activeAppKey, index, this.value, result);
+                return;
+            }
+            await openViewer(result, index, this.value, state.activeAppKey);
         });
-        modal.querySelector('#crx-delete-selected-posts').addEventListener('click', () => void deleteSelectedPosts());
-        modal.querySelector('#crx-delete-category').addEventListener('click', () => void deleteCurrentCategoryFiles(index));
-        modal.querySelector('#crx-post-list').addEventListener('click', event => {
+        modal.querySelector('#crx-delete-selected-posts')?.addEventListener('click', () => void deleteSelectedPosts());
+        modal.querySelector('#crx-delete-category')?.addEventListener('click', () => void deleteCurrentCategoryFiles(index));
+        modal.querySelector('#crx-post-list')?.addEventListener('click', event => {
             const boardEdit = event.target.closest?.('#crx-daum-edit, #crx-everytime-edit, #crx-webnovel-edit');
             if (boardEdit) {
                 event.preventDefault();
@@ -4129,7 +4490,7 @@ globalThis.CommunityReactionsExtension = (() => {
                 renderBoardDetail();
             }
         });
-        modal.querySelector('#crx-post-list').addEventListener('keydown', event => {
+        modal.querySelector('#crx-post-list')?.addEventListener('keydown', event => {
             if (!['Enter', ' '].includes(event.key) || state.deleteMode) {
                 return;
             }
@@ -4376,6 +4737,89 @@ globalThis.CommunityReactionsExtension = (() => {
         return `reader:${generation.site || ''}`;
     }
 
+    function getAppKeyFromSite(site) {
+        const value = String(site || '').trim();
+        if (APP_PRESETS[value]) {
+            return value;
+        }
+        return COMMUNITY_PHONE_APP_ID_TO_KEY[value] || '';
+    }
+
+    function getResultAppKey(result) {
+        const generation = result?.generation || {};
+        if (generation.reaction_mode === 'phone' || generation.phone_app_id) {
+            return '';
+        }
+        return getAppKeyFromSite(generation.site);
+    }
+
+    function getViewAppKey(index, viewKey) {
+        const key = String(viewKey || '');
+        if (!key || key.startsWith('phone:')) {
+            return '';
+        }
+        if (key.startsWith('reader:')) {
+            return getAppKeyFromSite(key.slice('reader:'.length));
+        }
+        if (key.startsWith('reader-custom:')) {
+            const communityId = key.slice('reader-custom:'.length);
+            const community = getReaderCommunity(index, communityId);
+            if (community?.site) {
+                return getAppKeyFromSite(community.site);
+            }
+        }
+        if (key.startsWith('npc:')) {
+            const topicId = key.slice(4);
+            const topic = getNpcTopic(index, topicId);
+            if (topic?.site) {
+                return getAppKeyFromSite(topic.site);
+            }
+        }
+        const item = index?.items?.find(entry => getItemViewKey(entry) === key);
+        return getItemAppKey(item, index);
+    }
+
+    function getItemAppKey(item, index = state.activeIndex) {
+        if (!item || getItemReactionMode(item) === 'phone') {
+            return '';
+        }
+        const directSite = getAppKeyFromSite(item.site);
+        if (directSite) {
+            return directSite;
+        }
+        if (item.reader_community_id) {
+            return getAppKeyFromSite(getReaderCommunity(index, item.reader_community_id)?.site);
+        }
+        if (item.topic_id) {
+            return getAppKeyFromSite(getNpcTopic(index, item.topic_id)?.site);
+        }
+        return '';
+    }
+
+    function getAppItems(index, appKey = '') {
+        const activeAppKey = getAppKeyFromSite(appKey);
+        return (index?.items || []).filter(item => {
+            if (getItemReactionMode(item) === 'phone') {
+                return false;
+            }
+            return !activeAppKey || getItemAppKey(item, index) === activeAppKey;
+        });
+    }
+
+    function getAppSummaries(index) {
+        return APP_ORDER.map(appKey => {
+            const items = getAppItems(index, appKey);
+            const categoryKeys = new Set(items.map(item => getItemViewKey(item)).filter(Boolean));
+            const postCount = items.reduce((total, item) => total + Math.max(0, Number(item.post_count || 0)), 0);
+            return {
+                appKey,
+                label: APP_PRESETS[appKey].label,
+                categoryCount: categoryKeys.size,
+                postCount,
+            };
+        });
+    }
+
     function getViewLabel(index, key) {
         if (String(key || '').startsWith('phone:')) {
             const appId = String(key).slice('phone:'.length);
@@ -4403,13 +4847,10 @@ globalThis.CommunityReactionsExtension = (() => {
         return SITE_PRESETS[site]?.label || site;
     }
 
-    function getCommunityOptions(index) {
+    function getCommunityOptions(index, appKey = '') {
         const seen = new Set();
         const options = [];
-        for (const item of index.items) {
-            if (getItemReactionMode(item) === 'phone') {
-                continue;
-            }
+        for (const item of getAppItems(index, appKey)) {
             const key = getItemViewKey(item);
             if (!key || seen.has(key)) {
                 continue;
@@ -4423,8 +4864,10 @@ globalThis.CommunityReactionsExtension = (() => {
         return options;
     }
 
-    function resetCommunityState(index, viewKey, preferredResultId = '') {
-        const items = index.items.filter(item => getItemViewKey(item) === viewKey);
+    function resetCommunityState(index, viewKey, preferredResultId = '', appKey = '') {
+        const items = viewKey
+            ? getAppItems(index, appKey).filter(item => getItemViewKey(item) === viewKey)
+            : [];
         state.latestCommunityResultId = items[0]?.id || '';
         const preferredIndex = Math.max(0, items.findIndex(item => item.id === preferredResultId));
         state.communityItems = preferredIndex > 0
@@ -4626,15 +5069,24 @@ globalThis.CommunityReactionsExtension = (() => {
         }
 
         toastr.success('선택한 게시글을 삭제했습니다.');
-        const chatPk = state.activeResult?.chat_pk || ensureChatPk(getContextSafe());
+        const chatPk = state.activeResult?.chat_pk || state.activeIndex?.chat_pk || ensureChatPk(getContextSafe());
         const index = await loadIndex(chatPk);
-        const firstItem = index.items.find(item => getItemViewKey(item) === state.activeViewKey) || index.items[0];
+        const appItems = getAppItems(index, state.activeAppKey);
+        const firstItem = appItems.find(item => getItemViewKey(item) === state.activeViewKey) || appItems[0];
         if (!firstItem) {
-            closeViewer();
+            if (state.viewerMode === 'phoneCommunityApp') {
+                await openCommunityAppInPhone(state.activeAppKey, index);
+            } else {
+                openEmptyCommunityAppViewer(state.activeAppKey, index);
+            }
             return;
         }
         const result = await readJson(firstItem.path);
-        await openViewer(result, index, getItemViewKey(firstItem));
+        if (state.viewerMode === 'phoneCommunityApp') {
+            await openCommunityAppInPhone(state.activeAppKey, index, getItemViewKey(firstItem), result);
+            return;
+        }
+        await openViewer(result, index, getItemViewKey(firstItem), state.activeAppKey);
     }
 
     async function deleteCurrentCategoryFiles(index) {
@@ -4643,7 +5095,7 @@ globalThis.CommunityReactionsExtension = (() => {
         }
 
         const viewKey = state.activeViewKey;
-        const targetItems = index.items.filter(item => getItemViewKey(item) === viewKey);
+        const targetItems = getAppItems(index, state.activeAppKey).filter(item => getItemViewKey(item) === viewKey);
         if (!targetItems.length) {
             toastr.info('삭제할 항목이 없습니다.');
             return;
@@ -4663,16 +5115,24 @@ globalThis.CommunityReactionsExtension = (() => {
         latestIndex.items = latestIndex.items.filter(item => getItemViewKey(item) !== viewKey);
         await saveIndex(latestIndex);
 
-        const nextItem = latestIndex.items[0];
+        const nextItem = getAppItems(latestIndex, state.activeAppKey)[0];
         if (!nextItem) {
-            closeViewer();
             toastr.success('현재 카테고리의 커뮤니티 반응을 모두 삭제했습니다.');
+            if (state.viewerMode === 'phoneCommunityApp') {
+                await openCommunityAppInPhone(state.activeAppKey, latestIndex);
+            } else {
+                openEmptyCommunityAppViewer(state.activeAppKey, latestIndex);
+            }
             return;
         }
 
         const result = await readJson(nextItem.path);
         toastr.success('현재 카테고리의 커뮤니티 반응을 모두 삭제했습니다.');
-        await openViewer(result, latestIndex, getItemViewKey(nextItem));
+        if (state.viewerMode === 'phoneCommunityApp') {
+            await openCommunityAppInPhone(state.activeAppKey, latestIndex, getItemViewKey(nextItem), result);
+            return;
+        }
+        await openViewer(result, latestIndex, getItemViewKey(nextItem), state.activeAppKey);
     }
 
     function addWandMenuButton() {
@@ -4693,10 +5153,10 @@ globalThis.CommunityReactionsExtension = (() => {
         button.id = 'crx_wand_button';
         button.className = 'list-group-item flex-container flexGap5';
         button.innerHTML = `
-            <div class="fa-solid fa-comments extensionsMenuExtensionButton"></div>
-            <span>커뮤니티 보기</span>
+            <div class="fa-solid fa-mobile-screen extensionsMenuExtensionButton"></div>
+            <span>휴대폰 확인하기</span>
         `;
-        button.addEventListener('click', () => void openComposer());
+        button.addEventListener('click', () => void openPhoneHome());
         container.appendChild(button);
         return true;
     }
@@ -4730,6 +5190,7 @@ globalThis.CommunityReactionsExtension = (() => {
     }
 
     async function boot() {
+        initializeStyles();
         await waitForAppReady();
         addWandMenuButton();
         try {
@@ -4746,5 +5207,6 @@ globalThis.CommunityReactionsExtension = (() => {
 
     return {
         openComposer,
+        openPhoneHome,
     };
 })();
