@@ -118,7 +118,7 @@
     left: 0;
     right: 0;
     background-color: #000000;
-    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.04)), var(--crx-phone-wallpaper-image, url(./assets/phone-wallpaper.webp));
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.04)), var(--crx-phone-wallpaper-image, url(../assets//phone-wallpaper.webp));
     background-position: center;
     background-repeat: no-repeat;
     background-size: cover;
@@ -470,27 +470,27 @@
 }
 
 .crx-phone-safari-icon {
-    background: url('assets/safari.png') #ffffff no-repeat center / 96%;
+    background: url('../assets/safari.png') #ffffff no-repeat center / 96%;
 }
 
 .crx-phone-call-icon {
-    background: url('assets/phone.webp') #ffffff no-repeat center / 100%;
+    background: url('../assets/phone.webp') #ffffff no-repeat center / 100%;
 }
 
 .crx-phone-message-icon {
-    background: url('assets/messages.webp') #ffffff no-repeat center / 100%;
+    background: url('../assets/messages.webp') #ffffff no-repeat center / 100%;
 }
 
 .crx-phone-music-icon {
-    background: url('assets/apple-music.webp') #ffffff no-repeat center / 100%;
+    background: url('../assets/apple-music.webp') #ffffff no-repeat center / 100%;
 }
 
 .crx-phone-setting-icon {
-    background: url('assets/setting.webp') #ffffff no-repeat center / calc(100% + 2px);
+    background: url('../assets/setting.webp') #ffffff no-repeat center / calc(100% + 2px);
 }
 
 .crx-phone-generate-icon {
-    background: url('assets/file.webp') #ffffff no-repeat center / 100%;
+    background: url('../assets/file.webp') #ffffff no-repeat center / 100%;
 }
 
 .crx-phone-generic-icon {
@@ -503,19 +503,19 @@
 }
 
 .crx-phone-community-icon.is-daum-cafe {
-    background: url('assets/daum.webp') #ffffff no-repeat center / 100%;
+    background: url('../assets/daum.webp') #ffffff no-repeat center / 100%;
 }
 
 .crx-phone-community-icon.is-twitter {
-    background: url('assets/x.jpg') #000000 no-repeat center / 100%;
+    background: url('../assets/x.jpg') #000000 no-repeat center / 100%;
 }
 
 .crx-phone-community-icon.is-everytime {
-    background: url('assets/everytime.jpg') #ffffff no-repeat center / 100%;
+    background: url('../assets/everytime.jpg') #ffffff no-repeat center / 100%;
 }
 
 .crx-phone-community-icon.is-ridibooks {
-    background: url('assets/ridi.jpg') #ffffff no-repeat center / 100%;
+    background: url('../assets/ridi.jpg') #ffffff no-repeat center / 100%;
 }
 
 .crx-phone-power-icon {
@@ -557,7 +557,7 @@
     border: 1px solid rgba(15, 23, 42, 0.12);
     border-radius: 16px;
     background-color: #dceffd;
-    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.04)), var(--crx-phone-wallpaper-image, url('./assets/phone-wallpaper.webp'));
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.04)), var(--crx-phone-wallpaper-image, url('../assets//phone-wallpaper.webp'));
     background-position: center;
     background-repeat: no-repeat;
     background-size: cover;
@@ -922,7 +922,7 @@
     width: min(150px, 65%);
     height: 32px;
     margin: 0px auto;
-    background: url('assets/google-logo-2015.png') no-repeat center / contain;
+    background: url('../assets/google-logo-2015.png') no-repeat center / contain;
     grid-column: 2 / 3;
 }
 button.crx-phone-google-menu {

@@ -19,11 +19,11 @@
     }
 
     &.is-bofa {
-        background: url('assets/BofA.png') #000000 no-repeat center / 100%;
+        background: url('../assets/BofA.png') #000000 no-repeat center / 100%;
     }
 
     &.is-kb {
-        background: url(assets/kb.png) #ffd100 no-repeat center / cover;
+        background: url(../assets/kb.png) #ffd100 no-repeat center / cover;
     }
 }
 

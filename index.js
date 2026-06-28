@@ -22,7 +22,7 @@ globalThis.CommunityReactionsExtension = (() => {
             : new URL(`/scripts/extensions/third-party/${MODULE_NAME}/`, window.location.href).href;
     })();
     const EXTENSION_CACHE_VERSION = (() => {
-        const fallbackVersion = '20260628-structure-1';
+        const fallbackVersion = '20260628-2';
         if (!EXTENSION_ENTRY_URL) {
             return fallbackVersion;
         }
