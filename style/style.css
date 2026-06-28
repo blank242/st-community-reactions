@@ -17,7 +17,7 @@
     inset: 0;
     z-index: 10000;
     display: flex;
-    height: 100vh;
+    height: 100dvh;
     align-items: center;
     justify-content: center;
     line-height: 1.2;
@@ -1809,7 +1809,7 @@
     }
 
     .crx-popup {
-        max-height: calc(100vh - 16px);
+        max-height: calc(100dvh - 16px);
         border-radius: 22px;
     }
 
@@ -1818,7 +1818,7 @@
     }
 
     .crx-viewer-modal .crx-popup {
-        height: 100vh;
+        height: 100dvh;
         max-height: none;
         border-radius: 0;
     }
